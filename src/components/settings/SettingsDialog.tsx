@@ -16,12 +16,19 @@ import {
   exportHistory,
   importHistory,
 } from '../../services/chat/backup.js'
+import { verifyApiKey } from '../../services/api/client.js'
+import { verifyOpenCodeApiKey } from '../../services/api/opencode.js'
+import type { ProviderId } from '../../services/api/types.js'
 import { useIsMobile } from '../../app/viewport.js'
 import { useChatStore } from '../../services/chat/store.js'
 import { regionCodes, getRegionName, provinces } from '../../services/location.js'
 import {
   isChineseBrowser,
+  setApiKey,
   setLocale,
+  setOpenCodeApiKey,
+  setOpenCodeModel,
+  setProvider,
   setLocation,
   setThemePreference,
   setTtsVoice,
@@ -65,8 +72,16 @@ const SettingsContent = ({
   const isMobile = useIsMobile()
   // 打开时按调用方指定的分组选中，之后在弹窗内切换
   const [section, setSection] = useState(() => useSettingsDialog.getState().section)
-  // 切换分组不丢失正在输入的 API Key
-  const apiKeyEditor = useApiKeyEditor()
+  const provider = useSettings((state) => state.provider)
+  const apiKey = useSettings((state) => state.apiKey)
+  const opencodeApiKey = useSettings((state) => state.opencodeApiKey)
+  // 切换分组不丢失正在输入的 API Key；两个服务方各维护一份编辑状态
+  const apiKeyEditor = useApiKeyEditor({ apiKey, save: setApiKey, verify: verifyApiKey })
+  const opencodeKeyEditor = useApiKeyEditor({
+    apiKey: opencodeApiKey,
+    save: setOpenCodeApiKey,
+    verify: verifyOpenCodeApiKey,
+  })
   const historyDelete = useHistoryDelete()
   const replacingHistory = useChatStore((state) => state.importingHistory)
   const historyBusy = historyImport.busy || historyDelete.busy || replacingHistory
@@ -109,7 +124,19 @@ const SettingsContent = ({
             </>
           ) : (
             <>
-              <ApiKeyField editor={apiKeyEditor} />
+              <ProviderSetting />
+              {provider === 'opencode' ? (
+                <>
+                  <ApiKeyField
+                    editor={opencodeKeyEditor}
+                    labelKey="opencodeApiKeyLabel"
+                    placeholderKey="opencodeApiKeyPlaceholder"
+                  />
+                  <OpenCodeModelSetting />
+                </>
+              ) : (
+                <ApiKeyField editor={apiKeyEditor} />
+              )}
               <ImportHistory historyImport={historyImport} disabled={historyBusy} />
               <ExportHistory disabled={historyBusy} />
               <SettingCell
@@ -127,7 +154,9 @@ const SettingsContent = ({
                   </Button>
                 }
               />
-              {isMobile ? <ApiKeyConfirm editor={apiKeyEditor} /> : null}
+              {isMobile ? (
+                <ApiKeyConfirm editor={provider === 'opencode' ? opencodeKeyEditor : apiKeyEditor} />
+              ) : null}
             </>
           )}
         </div>
@@ -209,6 +238,66 @@ const useHistoryDelete = () => {
     },
     confirm,
   }
+}
+
+const ProviderSetting = () => {
+  const t = useTranslate()
+  const provider = useSettings((state) => state.provider)
+  return (
+    <SettingCell
+      label={t('settingsProvider')}
+      description={t('settingsProviderDescription')}
+      status={null}
+      action={
+        <Select
+          ariaLabel={t('settingsProvider')}
+          value={provider}
+          options={[
+            { value: 'deepseek', label: t('settingsProviderDeepseek') },
+            { value: 'opencode', label: t('settingsProviderOpenCode') },
+          ]}
+          onChange={(value) => setProvider(value as ProviderId)}
+        />
+      }
+    />
+  )
+}
+
+/** OpenCode Go 的模型 ID：保存时去空格，留空回落到默认模型 */
+const OpenCodeModelSetting = () => {
+  const t = useTranslate()
+  const saved = useSettings((state) => state.opencodeModel)
+  const [value, setValue] = useState(saved)
+  const commit = () => {
+    setOpenCodeModel(value)
+    setValue(value.trim() || saved)
+  }
+  return (
+    <SettingCell
+      label={t('opencodeModelLabel')}
+      description={t('opencodeModelDescription')}
+      status={null}
+      action={
+        <div className={styles.apiKeyInput}>
+          <input
+            type="text"
+            placeholder={t('opencodeModelPlaceholder')}
+            autoComplete="off"
+            spellCheck={false}
+            value={value}
+            onChange={(event) => setValue(event.target.value)}
+            onBlur={commit}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' && !event.nativeEvent.isComposing) {
+                commit()
+                event.currentTarget.blur()
+              }
+            }}
+          />
+        </div>
+      }
+    />
+  )
 }
 
 const LocationSetting = () => {

@@ -53,6 +53,7 @@ const Input = ({ sessionId }: { sessionId: string | null }) => {
   const importingHistory = useChatStore((state) => state.importingHistory)
   const isMobile = useIsMobile()
   const search = useSettings((state) => state.search)
+  const provider = useSettings((state) => state.provider)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const togglesRef = useRef<HTMLDivElement>(null)
@@ -75,7 +76,15 @@ const Input = ({ sessionId }: { sessionId: string | null }) => {
   }, [t])
 
   const acceptFiles = (files: File[]) => {
-    if (files.length === 0 || useChatStore.getState().importingHistory || !ensureApiKey()) {
+    if (files.length === 0 || useChatStore.getState().importingHistory) {
+      return
+    }
+    // OpenCode Go 走 OpenAI 兼容协议，没有 Files API 上传通道
+    if (useSettings.getState().provider === 'opencode') {
+      showToast({ key: 'opencodeAttachUnavailable', type: 'error' })
+      return
+    }
+    if (!ensureApiKey()) {
       return
     }
     const error = addDraftFiles(sessionId, files, useSettings.getState().apiKey ?? '')
@@ -214,12 +223,17 @@ const Input = ({ sessionId }: { sessionId: string | null }) => {
               <span className={styles.toggleLabel}>{t('thinkingSwitch')}</span>
             </button>
           </Tooltip>
-          <Tooltip content={t('deactivatedSearchTooltip')}>
+          <Tooltip
+            content={
+              provider === 'opencode' ? t('opencodeSearchUnavailable') : t('deactivatedSearchTooltip')
+            }
+          >
             <button
               type="button"
               className={clsx(styles.toggle, search && styles.selected)}
               aria-label={t('search')}
               aria-pressed={search}
+              disabled={provider === 'opencode'}
               onClick={() => setSearch(!search)}
             >
               <IconGlobeLanguageOutline14 />

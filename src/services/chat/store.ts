@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { getAbortReason, throwIfAborted } from '../../utils/abort.js'
 import { createId } from '../../utils/id.js'
 import { ApiError, streamMessage } from '../api/client.js'
+import { streamOpenCodeMessage } from '../api/opencode.js'
 import type { ChatModel, CreateMessageRequest } from '../api/types.js'
 import { extractFileIds, getFileErrorCode, isRetryableApiError } from '../api/errors.js'
 import {
@@ -22,6 +23,11 @@ import {
   prepareDraftMessage,
 } from './drafts.js'
 import { createLatestReminder } from './latestReminder.js'
+import {
+  applyOpenCodeChunk,
+  createOpenCodeStreamState,
+  toOpenCodeMessages,
+} from './opencode.js'
 import {
   applyEvent,
   canContinueReply,
@@ -260,14 +266,15 @@ export const bindChatPersistence = () => {
   }
 }
 
-/** 按当前开关创建回复：深度思考对应 thinking，智能搜索控制 deepseek_web_search。 */
+/** 按当前设置创建回复：thinking 对应深度思考，search 控制 deepseek_web_search；provider 记录模型服务。 */
 const createReply = (): AssistantMessage => {
-  const { thinking, search } = useSettings.getState()
+  const { thinking, search, provider, opencodeModel } = useSettings.getState()
   return {
     id: createId(),
     role: 'assistant',
     createdAt: Date.now(),
-    model: MODEL,
+    provider,
+    model: provider === 'opencode' ? opencodeModel : MODEL,
     thinking,
     search,
     prefix: true,
@@ -1000,7 +1007,54 @@ const streamReply = async (sessionId: string, initial: AssistantMessage, request
   streamFlushes.set(sessionId, flush)
 
   try {
-    for (let attempt = 0; ; attempt += 1) {
+    if ((initial.provider ?? 'deepseek') === 'opencode') {
+      // OpenCode Go（OpenAI Chat Completions 兼容）：不经过附件补传与 Messages API，
+      // 历史只回传正文，思考来自 reasoning_content，标题用首条提问兜底。
+      const settings = useSettings.getState()
+      const state = createOpenCodeStreamState()
+      try {
+        const events = streamOpenCodeMessage({
+          apiKey: settings.opencodeApiKey ?? '',
+          sessionId,
+          model: initial.model ?? settings.opencodeModel,
+          messages: toOpenCodeMessages(request.history, request.question, SYSTEM_PROMPT),
+          reasoningEffort: initial.thinking ? 'high' : 'low',
+          signal: controller.signal,
+        })
+        for await (const chunk of events) {
+          reply = applyOpenCodeChunk(reply, chunk, Date.now(), state)
+          if (document.visibilityState === 'hidden') {
+            flush()
+          } else {
+            frame ||= requestAnimationFrame(flush)
+          }
+        }
+        reply = settleReply(reply, 'done', Date.now())
+      } catch (error) {
+        if (controller.signal.aborted) {
+          reply = settleReply(reply, 'stopped', Date.now())
+        } else if (error instanceof ApiError) {
+          reply = settleReply(reply, 'error', Date.now(), {
+            kind: error.kind,
+            message: error.message,
+            status: error.status,
+            localMessage: error.localMessage,
+          })
+        } else {
+          reply = settleReply(reply, 'error', Date.now(), {
+            kind: 'protocol',
+            message: error instanceof Error ? error.message : String(error),
+          })
+        }
+      }
+      const questionText = request.question.content.trim()
+      if (questionText && !controller.signal.aborted && !get().importingHistory) {
+        updateSession(sessionId, (session) =>
+          session.title ? session : { ...session, title: questionText.slice(0, 30) }
+        )
+      }
+    } else {
+      for (let attempt = 0; ; attempt += 1) {
       /** 附件补齐前出错属于上传失败，请求还没有发出 */
       let preparing = true
       let receivedContent = false
@@ -1024,7 +1078,8 @@ const streamReply = async (sessionId: string, initial: AssistantMessage, request
         const events = streamMessage(
           useSettings.getState().apiKey ?? '',
           {
-            model: initial.model ?? MODEL,
+            // 本分支只会是 DeepSeek 官方的回复，模型名为 ChatModel
+            model: (initial.model ?? MODEL) as ChatModel,
             system: SYSTEM_PROMPT,
             messages,
             thinking: { type: initial.thinking ? 'enabled' : 'disabled' },
@@ -1103,6 +1158,7 @@ const streamReply = async (sessionId: string, initial: AssistantMessage, request
         }
         break
       }
+    }
     }
   } finally {
     titleRequests.delete(controller)

@@ -170,6 +170,10 @@ export const getReplyText = (reply: AssistantMessage) =>
  * 服务端模板提示不能作为续写前缀。
  */
 export const canContinueReply = (reply: AssistantMessage): boolean => {
+  // OpenAI 兼容协议（OpenCode）没有对话前缀续写，历史也只回传正文
+  if (reply.provider === 'opencode') {
+    return false
+  }
   if (
     !reply.prefix ||
     reply.stopReason === 'refusal' ||

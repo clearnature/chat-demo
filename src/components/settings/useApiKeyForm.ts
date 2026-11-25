@@ -1,11 +1,18 @@
 import { useState } from 'react'
-import { ApiError, verifyApiKey } from '../../services/api/client.js'
+import { ApiError } from '../../services/api/client.js'
 import { classifyApiError } from '../../services/api/errors.js'
-import { setApiKey } from '../../services/settings.js'
 import { useTranslate } from '../../i18n/index.js'
 
-/** 输入 API Key 后先用 GET /models 校验，通过才保存 */
-export const useApiKeyForm = (onSaved?: () => void) => {
+export type ApiKeyFormOptions = {
+  /** 校验通过后保存 Key */
+  save: (apiKey: string) => void
+  /** 校验方式（GET /models 之类，不产生生成费用） */
+  verify: (apiKey: string) => Promise<void>
+  onSaved?: () => void
+}
+
+/** 输入 API Key 后先用 verify 校验，通过才保存 */
+export const useApiKeyForm = ({ save, verify, onSaved }: ApiKeyFormOptions) => {
   const t = useTranslate()
   const [value, setValue] = useState('')
   const [verifying, setVerifying] = useState(false)
@@ -35,8 +42,8 @@ export const useApiKeyForm = (onSaved?: () => void) => {
     setVerifying(true)
     setFailure(null)
     try {
-      await verifyApiKey(apiKey)
-      setApiKey(apiKey)
+      await verify(apiKey)
+      save(apiKey)
       setValue('')
       onSaved?.()
     } catch (e) {

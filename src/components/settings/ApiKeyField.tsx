@@ -1,24 +1,38 @@
 import { useState } from 'react'
 import { IconEditOutline16 } from '../base/icons.js'
-import { useSettings } from '../../services/settings.js'
 import { useIsMobile } from '../../app/viewport.js'
 import { IconButton } from '../base/IconButton.js'
 import { useApiKeyForm } from './useApiKeyForm.js'
-import { useTranslate } from '../../i18n/index.js'
+import { useTranslate, type TranslationKey } from '../../i18n/index.js'
 import styles from './Settings.module.css'
 
-/** API Key 的编辑状态：输入框与移动端底部的「确定」按钮共用 */
-export const useApiKeyEditor = () => {
-  const apiKey = useSettings((state) => state.apiKey)
+/** API Key 的编辑状态：输入框与移动端底部的「确定」按钮共用；不同服务方各用一份 */
+export const useApiKeyEditor = ({
+  apiKey,
+  save,
+  verify,
+}: {
+  apiKey: string | null
+  save: (apiKey: string) => void
+  verify: (apiKey: string) => Promise<void>
+}) => {
   const [editing, setEditing] = useState(false)
-  const form = useApiKeyForm(() => setEditing(false))
+  const form = useApiKeyForm({ save, verify, onSaved: () => setEditing(false) })
   return { apiKey, editing, setEditing, form, showInput: !apiKey || editing }
 }
 
 type ApiKeyEditor = ReturnType<typeof useApiKeyEditor>
 
 /** API Key：保存后只显示掩码，点编辑按钮才能重新输入 */
-export const ApiKeyField = ({ editor }: { editor: ApiKeyEditor }) => {
+export const ApiKeyField = ({
+  editor,
+  labelKey = 'apiKeyStart',
+  placeholderKey = 'apiKeyPlaceholder',
+}: {
+  editor: ApiKeyEditor
+  labelKey?: TranslationKey
+  placeholderKey?: TranslationKey
+}) => {
   const t = useTranslate()
   const isMobile = useIsMobile()
   const { apiKey, editing, setEditing, form, showInput } = editor
@@ -26,7 +40,7 @@ export const ApiKeyField = ({ editor }: { editor: ApiKeyEditor }) => {
   return (
     <div className={styles.cell}>
       <div className={styles.apiKey}>
-        <div className={styles.label}>{t('apiKeyStart')}</div>
+        <div className={styles.label}>{t(labelKey)}</div>
         {apiKey && !editing ? (
           <div className={styles.apiKeySaved}>
             <span className={styles.apiKeyMask}>{'*'.repeat(apiKey.length)}</span>
@@ -41,7 +55,7 @@ export const ApiKeyField = ({ editor }: { editor: ApiKeyEditor }) => {
           <div className={styles.apiKeyInput}>
             <input
               type="password"
-              placeholder={t('apiKeyPlaceholder')}
+              placeholder={t(placeholderKey)}
               autoComplete="off"
               spellCheck={false}
               // 移动端打开设置时不弹键盘，点编辑后才聚焦

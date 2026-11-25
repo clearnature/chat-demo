@@ -6,6 +6,12 @@
 
 export type ChatModel = 'deepseek-flash' | 'deepseek-v4-pro'
 
+/** 生成回复所用的模型服务：DeepSeek 官方 Messages API 或 OpenCode Go */
+export type ProviderId = 'deepseek' | 'opencode'
+
+/** OpenCode Go 默认模型 ID（OpenAI Chat Completions 兼容） */
+export const OPENCODE_DEFAULT_MODEL = 'deepseek-v4.1-flash'
+
 // ---------- 响应：内容块 ----------
 
 /** 正文引用：服务端把模型的引用标记还原为来源，挂在对应文本块上 */

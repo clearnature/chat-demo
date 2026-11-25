@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import type { TtsVoice } from './api/speech.js'
+import { OPENCODE_DEFAULT_MODEL, type ProviderId } from './api/types.js'
 import { normalizeLocation, type UserLocation } from './location.js'
 
 export type Locale = 'zh-CN' | 'en-US'
@@ -7,9 +8,16 @@ export type Locale = 'zh-CN' | 'en-US'
 /** 主题偏好；默认跟随系统 */
 export type ThemePreference = 'light' | 'dark' | 'system'
 
-/** 本机设置，存 localStorage：API Key、语言、主题、位置、朗读音色、深度思考与智能搜索开关、侧边栏收起状态 */
+/** 本机设置，存 localStorage：模型服务与 Key、语言、主题、位置、朗读音色、深度思考与智能搜索开关、侧边栏收起状态 */
 type Settings = {
+  /** 当前使用的模型服务 */
+  provider: ProviderId
+  /** DeepSeek 官方 API Key */
   apiKey: string | null
+  /** OpenCode Go API Key */
+  opencodeApiKey: string | null
+  /** OpenCode Go 模型 ID */
+  opencodeModel: string
   locale: Locale
   themePreference: ThemePreference
   location: UserLocation | null
@@ -20,7 +28,10 @@ type Settings = {
 }
 
 const KEYS = {
+  provider: 'chat-demo:provider',
   apiKey: 'chat-demo:api-key',
+  opencodeApiKey: 'chat-demo:opencode-api-key',
+  opencodeModel: 'chat-demo:opencode-model',
   locale: 'chat-demo:locale',
   location: 'chat-demo:location',
   themePreference: 'chat-demo:theme-preference',
@@ -88,7 +99,10 @@ const initialThemePreference = (): ThemePreference => {
 const initialTtsVoice = (): TtsVoice => (read(KEYS.ttsVoice) === 'tide' ? 'tide' : 'stella')
 
 export const useSettings = create<Settings>(() => ({
+  provider: read(KEYS.provider) === 'opencode' ? 'opencode' : 'deepseek',
   apiKey: read(KEYS.apiKey),
+  opencodeApiKey: read(KEYS.opencodeApiKey),
+  opencodeModel: read(KEYS.opencodeModel) || OPENCODE_DEFAULT_MODEL,
   locale: initialLocale(),
   location: initialLocation(),
   themePreference: initialThemePreference(),
@@ -119,9 +133,25 @@ export const setTtsVoice = (ttsVoice: TtsVoice) => {
   useSettings.setState({ ttsVoice })
 }
 
+export const setProvider = (provider: ProviderId) => {
+  write(KEYS.provider, provider)
+  useSettings.setState({ provider })
+}
+
 export const setApiKey = (apiKey: string | null) => {
   write(KEYS.apiKey, apiKey)
   useSettings.setState({ apiKey })
+}
+
+export const setOpenCodeApiKey = (opencodeApiKey: string | null) => {
+  write(KEYS.opencodeApiKey, opencodeApiKey)
+  useSettings.setState({ opencodeApiKey })
+}
+
+export const setOpenCodeModel = (opencodeModel: string) => {
+  const value = opencodeModel.trim() || OPENCODE_DEFAULT_MODEL
+  write(KEYS.opencodeModel, value)
+  useSettings.setState({ opencodeModel: value })
 }
 
 export const setThinking = (thinking: boolean) => {
