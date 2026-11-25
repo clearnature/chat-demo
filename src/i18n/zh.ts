@@ -12,6 +12,7 @@ export const zh = {
   sessionDeleteFailed: '删除对话失败，请重试',
   settings: '设置',
   appName: 'deepwork-chat',
+  visitorIpLabel: '当前访问 IP',
   deleteSessionModalContentTitle: '永久删除对话',
   deleteSessionWithFilesDescription: '删除后，该对话及其中上传的文件将不可恢复。确认删除吗？',
   cancel: '取消',

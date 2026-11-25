@@ -1,0 +1,24 @@
+.footer {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 6px 16px calc(8px + env(safe-area-inset-bottom, 0px));
+  border-top: 1px solid var(--dsw-alias-border-l);
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+  line-height: 1.4;
+  user-select: text;
+}
+
+.label {
+  opacity: 0.9;
+}
+
+.value {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace;
+  user-select: all;
+  word-break: break-all;
+}
