@@ -1,5 +1,5 @@
 import clsx from 'clsx'
-import { useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import {
   IconDarkOutline16,
   IconDataOutline16,
@@ -7,6 +7,7 @@ import {
   IconFollowsystemOutline16,
   IconLightOutline16,
   IconLoadingOutline16,
+  IconRefreshOutline16,
   IconSettingsOutline16,
   IconUploadOutline14,
 } from '../base/icons.js'
@@ -17,7 +18,7 @@ import {
   importHistory,
 } from '../../services/chat/backup.js'
 import { verifyApiKey } from '../../services/api/client.js'
-import { verifyOpenCodeApiKey } from '../../services/api/opencode.js'
+import { fetchOpenCodeModels, verifyOpenCodeApiKey, type OpenCodeModel } from '../../services/api/opencode.js'
 import type { ProviderId } from '../../services/api/types.js'
 import { useIsMobile } from '../../app/viewport.js'
 import { useChatStore } from '../../services/chat/store.js'
@@ -37,6 +38,7 @@ import {
 } from '../../services/settings.js'
 import { useTranslate, type TranslationKey, type TranslationMessage } from '../../i18n/index.js'
 import { Button } from '../base/Button.js'
+import { IconButton } from '../base/IconButton.js'
 import { Modal } from '../base/Modal.js'
 import { Select } from '../base/Select.js'
 import { showToast } from '../base/toastState.js'
@@ -263,35 +265,107 @@ const ProviderSetting = () => {
   )
 }
 
-/** OpenCode Go 的模型 ID：保存时去空格，留空回落到默认模型 */
+/** OpenCode Go 模型：自动从 /models 拉取列表；拉取失败时回退为手动输入 */
 const OpenCodeModelSetting = () => {
   const t = useTranslate()
   const saved = useSettings((state) => state.opencodeModel)
-  const [value, setValue] = useState(saved)
-  const commit = () => {
-    setOpenCodeModel(value)
-    setValue(value.trim() || saved)
+  const apiKey = useSettings((state) => state.opencodeApiKey)
+  const [models, setModels] = useState<OpenCodeModel[] | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [failed, setFailed] = useState(false)
+  const [refreshToken, setRefreshToken] = useState(0)
+  const [manual, setManual] = useState(saved)
+
+  useEffect(() => {
+    if (!apiKey) {
+      setModels(null)
+      setFailed(false)
+      return
+    }
+    const controller = new AbortController()
+    setLoading(true)
+    setFailed(false)
+    fetchOpenCodeModels(apiKey, { signal: controller.signal, force: refreshToken > 0 })
+      .then((list) => {
+        if (!controller.signal.aborted) {
+          setModels(list)
+        }
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) {
+          setFailed(true)
+        }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) {
+          setLoading(false)
+        }
+      })
+    return () => controller.abort()
+  }, [apiKey, refreshToken])
+
+  // 已保存的模型不在服务端列表里（例如被下线）时也保留为可选项
+  const options = (models ?? []).map((model) => ({
+    value: model.id,
+    label: model.name ? `${model.name} · ${model.id}` : model.id,
+  }))
+  if (!options.some((option) => option.value === saved)) {
+    options.unshift({ value: saved, label: saved })
   }
+
+  const status: Status = !apiKey
+    ? { key: 'opencodeModelsNeedKey' }
+    : failed
+      ? { key: 'opencodeModelsFailed', error: true }
+      : null
+
+  const commitManual = () => {
+    setOpenCodeModel(manual)
+    setManual(manual.trim() || saved)
+  }
+
   return (
     <SettingCell
       label={t('opencodeModelLabel')}
       description={t('opencodeModelDescription')}
-      status={null}
+      status={status}
       action={
-        <div className={styles.apiKeyInput}>
-          <input
-            type="text"
-            placeholder={t('opencodeModelPlaceholder')}
-            autoComplete="off"
-            spellCheck={false}
-            value={value}
-            onChange={(event) => setValue(event.target.value)}
-            onBlur={commit}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter' && !event.nativeEvent.isComposing) {
-                commit()
-                event.currentTarget.blur()
-              }
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {failed ? (
+            <div className={styles.apiKeyInput}>
+              <input
+                type="text"
+                placeholder={t('opencodeModelPlaceholder')}
+                autoComplete="off"
+                spellCheck={false}
+                value={manual}
+                onChange={(event) => setManual(event.target.value)}
+                onBlur={commitManual}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' && !event.nativeEvent.isComposing) {
+                    commitManual()
+                    event.currentTarget.blur()
+                  }
+                }}
+              />
+            </div>
+          ) : (
+            <Select
+              ariaLabel={t('opencodeModelLabel')}
+              value={saved}
+              placeholder={loading ? t('opencodeModelsLoading') : t('opencodeModelPlaceholder')}
+              disabled={loading || !apiKey}
+              options={options}
+              onChange={setOpenCodeModel}
+            />
+          )}
+          <IconButton
+            icon={<IconRefreshOutline16 />}
+            tooltip={t('opencodeModelsRefresh')}
+            disabled={!apiKey || loading}
+            onClick={() => {
+              setManual(saved)
+              setRefreshToken((value) => value + 1)
             }}
           />
         </div>

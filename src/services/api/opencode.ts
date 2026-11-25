@@ -101,6 +101,52 @@ export const toMessageUsage = (usage: OpenCodeUsage | undefined): MessageUsage |
   }
 }
 
+/** OpenCode Go 返回的模型条目（只取界面需要的字段） */
+export type OpenCodeModel = {
+  id: string
+  /** 服务端展示名；缺省时界面回退为 id */
+  name: string | null
+}
+
+/** 模型列表短时缓存，避免每次打开设置都请求 */
+const MODEL_CACHE_MS = 5 * 60 * 1000
+let modelCache: { apiKey: string; at: number; models: OpenCodeModel[] } | null = null
+
+const readModels = (payload: unknown): OpenCodeModel[] => {
+  if (!isRecord(payload) || !Array.isArray(payload.data)) {
+    throw new ApiError('protocol', 'Invalid model list response')
+  }
+  const models: OpenCodeModel[] = []
+  for (const item of payload.data) {
+    if (!isRecord(item) || typeof item.id !== 'string') {
+      continue
+    }
+    // 只保留可对话模型；没有 type 字段的服务端视为可用
+    if (typeof item.type === 'string' && item.type !== 'chat') {
+      continue
+    }
+    models.push({ id: item.id, name: typeof item.name === 'string' ? item.name : null })
+  }
+  return models
+}
+
+/** 获取 OpenCode Go 的可用模型列表；force 为 true 时跳过缓存 */
+export const fetchOpenCodeModels = async (
+  apiKey: string,
+  { signal, force = false }: { signal?: AbortSignal; force?: boolean } = {}
+): Promise<OpenCodeModel[]> => {
+  if (!force && modelCache && modelCache.apiKey === apiKey && Date.now() - modelCache.at < MODEL_CACHE_MS) {
+    return modelCache.models
+  }
+  const response = await request(`${OPENCODE_BASE_URL}/models`, {
+    headers: { Authorization: `Bearer ${apiKey}` },
+    signal,
+  })
+  const models = readModels(await response.json())
+  modelCache = { apiKey, at: Date.now(), models }
+  return models
+}
+
 /** 用 GET /models 校验 Key（不产生生成费用），失败抛 ApiError */
 export const verifyOpenCodeApiKey = async (apiKey: string, signal?: AbortSignal): Promise<void> => {
   await request(`${OPENCODE_BASE_URL}/models`, {
