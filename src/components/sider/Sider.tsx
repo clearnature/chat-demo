@@ -6,13 +6,12 @@ import { setSiderCollapsed } from '../../services/settings.js'
 import { groupSessions } from '../../services/chat/sessionGroups.js'
 import { newChat, removeSession, useChatStore } from '../../services/chat/store.js'
 import type { SessionSummary } from '../../services/chat/types.js'
-import { Button } from '../base/Button.js'
 import { IconButton } from '../base/IconButton.js'
-import { Modal } from '../base/Modal.js'
 import { showToast } from '../base/toastState.js'
 import { openSettings } from '../settings/settingsDialogState.js'
 import { closeMobileSider, useMobileSider } from './mobileSiderState.js'
 import { SessionItem } from './SessionItem.js'
+import { SessionDeleteConfirm, type ConfirmAnchor } from './SessionDeleteConfirm.js'
 import styles from './Sider.module.css'
 
 /** 展开的侧边栏：名称与收起按钮、开启新对话、按时间分组的会话列表、底部设置；移动端放在抽屉里，收起按钮关闭抽屉 */
@@ -27,7 +26,7 @@ export const Sider = ({ mobile = false }: { mobile?: boolean }) => {
     [sessions]
   )
   const groups = useMemo(() => groupSessions(visibleSessions, now, t), [visibleSessions, now, t])
-  const [deleting, setDeleting] = useState<SessionSummary | null>(null)
+  const [deleting, setDeleting] = useState<{ session: SessionSummary; anchor: ConfirmAnchor } | null>(null)
   const [deletePending, setDeletePending] = useState(false)
 
   useEffect(() => {
@@ -89,7 +88,7 @@ export const Sider = ({ mobile = false }: { mobile?: boolean }) => {
                   key={session.id}
                   session={session}
                   active={session.id === activeId}
-                  onDelete={() => setDeleting(session)}
+                  onDelete={(anchor) => setDeleting({ session, anchor })}
                 />
               ))}
             </div>
@@ -105,41 +104,27 @@ export const Sider = ({ mobile = false }: { mobile?: boolean }) => {
         </button>
       </div>
       {deleting ? (
-        <Modal
-          title={t('deleteSessionModalContentTitle')}
-          onClose={() => {
+        <SessionDeleteConfirm
+          anchor={deleting.anchor}
+          pending={deletePending}
+          onCancel={() => {
             if (!deletePending) {
               setDeleting(null)
             }
           }}
-          footer={
-            <>
-              <Button variant="outlined" disabled={deletePending} onClick={() => setDeleting(null)}>
-                {t('cancel')}
-              </Button>
-              <Button
-                variant="danger"
-                disabled={deletePending}
-                onClick={async () => {
-                  setDeletePending(true)
-                  try {
-                    if (await removeSession(deleting.id)) {
-                      setDeleting(null)
-                    } else {
-                      showToast({ key: 'sessionDeleteFailed', type: 'error' })
-                    }
-                  } finally {
-                    setDeletePending(false)
-                  }
-                }}
-              >
-                {t('delete')}
-              </Button>
-            </>
-          }
-        >
-          {t('deleteSessionWithFilesDescription')}
-        </Modal>
+          onConfirm={async () => {
+            setDeletePending(true)
+            try {
+              if (await removeSession(deleting.session.id)) {
+                setDeleting(null)
+              } else {
+                showToast({ key: 'sessionDeleteFailed', type: 'error' })
+              }
+            } finally {
+              setDeletePending(false)
+            }
+          }}
+        />
       ) : null}
     </div>
   )

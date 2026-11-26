@@ -1,5 +1,5 @@
 import clsx from 'clsx'
-import { memo, useState } from 'react'
+import { memo, useRef, useState } from 'react'
 import { useTranslate } from '../../i18n/index.js'
 import { IconEditOutline16, IconEllipsisOutline16, IconTrashOutline16 } from '../base/icons.js'
 import { renameSession, selectSession } from '../../services/chat/store.js'
@@ -16,11 +16,12 @@ export const SessionItem = memo(function SessionItem({
 }: {
   session: SessionSummary
   active: boolean
-  onDelete: () => void
+  onDelete: (anchor: DOMRect) => void
 }) {
   const t = useTranslate()
   const [editing, setEditing] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
+  const itemRef = useRef<HTMLDivElement | null>(null)
   const displayTitle = session.title || t('untitledChat')
 
   if (editing) {
@@ -50,6 +51,7 @@ export const SessionItem = memo(function SessionItem({
 
   return (
     <div
+      ref={itemRef}
       className={clsx(styles.item, active && styles.active)}
       onClick={() => {
         selectSession(session.id)
@@ -75,7 +77,8 @@ export const SessionItem = memo(function SessionItem({
               label: t('delete'),
               icon: <IconTrashOutline16 />,
               danger: true,
-              onSelect: onDelete,
+              onSelect: () =>
+                onDelete(itemRef.current?.getBoundingClientRect() ?? new DOMRect()),
             },
           ]}
         >
