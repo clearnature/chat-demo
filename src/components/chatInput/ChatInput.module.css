@@ -333,14 +333,9 @@
 
 .suggestions {
   display: flex;
+  flex-wrap: wrap;
   gap: 6px;
   margin-bottom: 8px;
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-
-.suggestions::-webkit-scrollbar {
-  display: none;
 }
 
 .suggestion {

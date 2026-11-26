@@ -21,7 +21,12 @@ export const Sider = ({ mobile = false }: { mobile?: boolean }) => {
   const sessions = useChatStore((state) => state.sessions)
   const activeId = useChatStore((state) => state.activeId)
   const [now, setNow] = useState(Date.now)
-  const groups = useMemo(() => groupSessions(sessions, now, t), [sessions, now, t])
+  // 隐藏从未发过消息的空会话（标题为空且创建后未更新），避免历史里出现无意义的「新对话」
+  const visibleSessions = useMemo(
+    () => sessions.filter((session) => session.title !== '' || session.updatedAt !== session.createdAt),
+    [sessions]
+  )
+  const groups = useMemo(() => groupSessions(visibleSessions, now, t), [visibleSessions, now, t])
   const [deleting, setDeleting] = useState<SessionSummary | null>(null)
   const [deletePending, setDeletePending] = useState(false)
 
