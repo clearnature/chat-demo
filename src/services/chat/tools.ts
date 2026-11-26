@@ -305,7 +305,7 @@ export const executeToolCall = async (call: ToolCall, signal: AbortSignal): Prom
 const RETRIEVE_MODEL = 'deepseek-v4-pro'
 const RETRIEVE_CACHE_TTL = 24 * 60 * 60 * 1000
 const RETRIEVE_CACHE_LIMIT = 30
-const RETRIEVE_TIMEOUT = 120 * 1000
+const RETRIEVE_TIMEOUT = 240 * 1000
 
 const retrieveCache = new Map<string, { at: number; value: RetrieveKnowledge }>()
 
@@ -317,6 +317,11 @@ export const retrieveInfoTool: ClientToolDef = {
     type: 'object',
     properties: {
       query: { type: 'string', description: 'Research question or topic to investigate' },
+      max_pages: {
+        type: 'integer',
+        description:
+          'How many result pages to read (optional). Omit to let the tool decide based on the question; there is no fixed upper limit.',
+      },
     },
     required: ['query'],
   },
@@ -367,7 +372,7 @@ const toRetrieveBlock = (call: ToolCall, knowledge: RetrieveKnowledge): WebSearc
   type: 'web_search_tool_result',
   tool_use_id: call.id,
   kind: 'deep_search',
-  content: knowledge.sources.slice(0, MAX_SEARCH_RESULTS).map((source) => ({
+  content: knowledge.sources.map((source) => ({
     type: 'web_search_result' as const,
     title: source.title,
     url: source.url,
@@ -390,7 +395,7 @@ const retrieveRequest = (query: string, apiKey: string): RequestInit => ({
     input: [
       {
         role: 'user',
-        content: `请使用联网搜索深入研究下面的问题，返回结构化知识（answer/facts/sources），sources 必须是真实可访问的网页链接：\n\n${query}`,
+        content: `请使用联网搜索深入研究下面的问题，返回结构化知识（answer/facts/sources），sources 必须是真实可访问的网页链接；请尽可能多地聚合不同来源，不设网页数量上限：\n\n${query}`,
       },
     ],
     tools: [{ type: 'web_search' }],
@@ -429,7 +434,7 @@ const executeRetrieveOfficial = async (
     writeRetrieveCache(query, knowledge)
     return {
       block: toRetrieveBlock(call, knowledge),
-      content: clip(JSON.stringify({ ...knowledge, cached: false, mode: 'official' })),
+      content: JSON.stringify({ ...knowledge, cached: false, mode: 'official' }),
       ok: true,
     }
   } catch (error) {
@@ -442,8 +447,6 @@ const executeRetrieveOfficial = async (
 
 // ---------------- retrieve_info 的 OpenCode 客户端回退 ----------------
 
-/** 回退版最多抓取的网页正文数量 */
-const LOCAL_RETRIEVE_FETCH_LIMIT = 3
 /** 每个网页回传给综合模型的字符上限 */
 const LOCAL_RETRIEVE_PAGE_CHARS = 4000
 
@@ -470,35 +473,46 @@ const gatherSources = async (query: string, signal: AbortSignal): Promise<Gather
       }
     })
     .filter((item): item is GatherSource => item !== null)
-    .slice(0, MAX_SEARCH_RESULTS)
 }
 
 /** 抓取若干来源的正文（失败/空内容跳过） */
 const gatherPages = async (
   sources: GatherSource[],
+  limit: number,
   signal: AbortSignal
 ): Promise<{ url: string; title: string; text: string }[]> => {
-  const pages: { url: string; title: string; text: string }[] = []
-  for (const source of sources.slice(0, LOCAL_RETRIEVE_FETCH_LIMIT)) {
-    try {
-      const payload = (await getJSON(
-        `/read-api/?url=${encodeURIComponent(source.url)}`,
-        signal
-      )) as { url?: unknown; title?: unknown; text?: unknown }
-      const body = text(payload.text)
-      if (!body) {
+  const targets = sources.slice(0, limit)
+  const results: ({ url: string; title: string; text: string } | null)[] = new Array(targets.length).fill(null)
+  let cursor = 0
+  const CONCURRENCY = 4
+  const worker = async (): Promise<void> => {
+    while (cursor < targets.length) {
+      const index = cursor
+      cursor += 1
+      const source = targets[index]
+      if (!source) {
         continue
       }
-      pages.push({
-        url: text(payload.url) || source.url,
-        title: text(payload.title) || source.title,
-        text: body.slice(0, LOCAL_RETRIEVE_PAGE_CHARS),
-      })
-    } catch {
-      // 单个来源抓取失败不影响整体
+      try {
+        const payload = (await getJSON(
+          `/read-api/?url=${encodeURIComponent(source.url)}`,
+          signal
+        )) as { url?: unknown; title?: unknown; text?: unknown }
+        const body = text(payload.text)
+        if (body) {
+          results[index] = {
+            url: text(payload.url) || source.url,
+            title: text(payload.title) || source.title,
+            text: body.slice(0, LOCAL_RETRIEVE_PAGE_CHARS),
+          }
+        }
+      } catch {
+        // 单个来源抓取失败不影响整体
+      }
     }
   }
-  return pages
+  await Promise.all(Array.from({ length: Math.min(CONCURRENCY, targets.length) }, worker))
+  return results.filter((item): item is { url: string; title: string; text: string } => item !== null)
 }
 
 /** 调 OpenCode Responses API 做结构化综合（不支持 json_schema 时退化为提示 JSON） */
@@ -510,7 +524,7 @@ const synthesizeKnowledge = async (
 ): Promise<RetrieveKnowledge | null> => {
   const parts: string[] = [
     '你是深度研究助手。基于下面提供的搜索结果与网页正文，回答研究问题并只输出结构化知识。',
-    'sources 只能使用下面出现过的 URL，不得编造。',
+    'sources 只能使用下面出现过的 URL，不得编造；请尽可能全面地覆盖来源，不设网页数量上限。',
     `\n研究问题：${query}`,
     '\n搜索结果：',
     ...sources.map((source, index) => `${index + 1}. ${source.title} — ${source.url}\n   摘要：${source.snippet}`),
@@ -580,7 +594,12 @@ const executeRetrieveLocal = async (
         'retrieve_info: local search returned no results (engines may be rate limited); try web_fetch with a known URL'
       )
     }
-    const pages = await gatherPages(sources, signal)
+    const requested = Number(call.input.max_pages)
+    const pageLimit =
+      Number.isFinite(requested) && requested >= 1
+        ? Math.min(Math.floor(requested), sources.length)
+        : sources.length
+    const pages = await gatherPages(sources, pageLimit, signal)
     const knowledge = await synthesizeKnowledge(query, sources, pages, signal)
     if (!knowledge) {
       return failedSearch(call.id, 'retrieve_info: synthesis failed (model unavailable or invalid JSON)')
@@ -590,14 +609,12 @@ const executeRetrieveLocal = async (
         ? knowledge
         : {
             ...knowledge,
-            sources: sources
-              .slice(0, LOCAL_RETRIEVE_FETCH_LIMIT)
-              .map(({ title, url }) => ({ title, url })),
+            sources: sources.map(({ title, url }) => ({ title, url })),
           }
     writeRetrieveCache(query, finalKnowledge)
     return {
       block: toRetrieveBlock(call, finalKnowledge),
-      content: clip(JSON.stringify({ ...finalKnowledge, cached: false, mode: 'local' })),
+      content: JSON.stringify({ ...finalKnowledge, cached: false, mode: 'local' }),
       ok: true,
     }
   } catch (error) {
