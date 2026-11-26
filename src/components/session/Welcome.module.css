@@ -123,3 +123,33 @@
   right: 20px;
   z-index: 2;
 }
+
+.hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  margin: auto;
+}
+
+.inputArea {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+
+@media (min-width: 768px) {
+  .welcome {
+    position: relative;
+    height: 100%;
+    padding-bottom: 132px;
+  }
+
+  .inputArea {
+    position: absolute;
+    left: 32px;
+    right: 32px;
+    bottom: 24px;
+    width: auto;
+  }
+}

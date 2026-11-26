@@ -67,7 +67,7 @@ export const ReplyArea = memo(function ReplyArea({
   hasResponse: boolean
 }) {
   const t = useTranslate()
-  const [open, setOpen] = useState(true)
+  const [open, setOpen] = useState(false)
   const titleActive = streaming && !hasResponse
   useTicker(titleActive, 1000)
   if (view.steps.length === 0 && !(message.thinking && streaming)) {

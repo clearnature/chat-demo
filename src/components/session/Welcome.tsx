@@ -52,21 +52,25 @@ export const Welcome = () => {
         <ChatTopActions />
       </div>
       <div className={styles.welcome}>
-        <div className={styles.greeting}>{t('welcomeMessageChat250808')}</div>
-        <div className={styles.demos}>
-          {DEMOS.map((demo) => (
-            <button
-              key={demo.title}
-              type="button"
-              className={styles.demoCard}
-              onClick={() => runDemo(demo.prompt)}
-            >
-              <span className={styles.demoTitle}>{demo.title}</span>
-              <span className={styles.demoTag}>{demo.tag}</span>
-            </button>
-          ))}
+        <div className={styles.hero}>
+          <div className={styles.greeting}>{t('welcomeMessageChat250808')}</div>
+          <div className={styles.demos}>
+            {DEMOS.map((demo) => (
+              <button
+                key={demo.title}
+                type="button"
+                className={styles.demoCard}
+                onClick={() => runDemo(demo.prompt)}
+              >
+                <span className={styles.demoTitle}>{demo.title}</span>
+                <span className={styles.demoTag}>{demo.tag}</span>
+              </button>
+            ))}
+          </div>
         </div>
-        <ChatInput sessionId={null} />
+        <div className={styles.inputArea}>
+          <ChatInput sessionId={null} />
+        </div>
         {isMobile ? <div className={styles.caveat}>{t('contentCaveat')}</div> : null}
       </div>
     </div>

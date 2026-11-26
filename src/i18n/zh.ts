@@ -66,6 +66,7 @@ export const zh = {
   canvasTitle: '画布',
   canvasReopen: '重新打开画布',
   topOpenFile: '打开文件',
+  topNoGeneratedFiles: '当前对话还没有生成文件',
   canvasRun: '运行',
   canvasNew: '新建',
   canvasLangHtml: 'HTML/JS',

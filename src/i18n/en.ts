@@ -70,6 +70,7 @@ export const en = {
   canvasTitle: 'Canvas',
   canvasReopen: 'Reopen canvas',
   topOpenFile: 'Open file',
+  topNoGeneratedFiles: 'No generated files in this chat yet',
   canvasRun: 'Run',
   canvasNew: 'New',
   canvasLangHtml: 'HTML/JS',
