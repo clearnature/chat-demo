@@ -330,3 +330,33 @@
     cursor: not-allowed;
   }
 }
+
+.suggestions {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.suggestions::-webkit-scrollbar {
+  display: none;
+}
+
+.suggestion {
+  flex-shrink: 0;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--dsw-alias-border-secondary, #e5e7eb);
+  background: transparent;
+  color: var(--dsw-alias-label-secondary, #6b7280);
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.suggestion:hover {
+  border-color: #9b72cb;
+  color: #6d5bd0;
+  background: rgba(155, 114, 203, 0.08);
+}

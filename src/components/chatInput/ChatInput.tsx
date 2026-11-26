@@ -31,10 +31,18 @@ import { DraftAttachments } from './DraftAttachments.js'
 import { useVoiceInput } from './useVoiceInput.js'
 import { VoiceButton } from './VoiceButton.js'
 import { Spectrum } from './Spectrum.js'
-import { useTranslate } from '../../i18n/index.js'
+import { useTranslate, type TranslationKey } from '../../i18n/index.js'
 import styles from './ChatInput.module.css'
 
 /** 输入框：自适应高度的文本框 + 文件 + 深度思考与智能搜索开关 + 语音输入 + 发送 / 停止 */
+const SUGGESTIONS: { label: TranslationKey; prompt: TranslationKey }[] = [
+  { label: 'suggestion3d', prompt: 'suggestionPrompt3d' },
+  { label: 'suggestionPhysics', prompt: 'suggestionPromptPhysics' },
+  { label: 'suggestionPython', prompt: 'suggestionPromptPython' },
+  { label: 'suggestionFormula', prompt: 'suggestionPromptFormula' },
+  { label: 'suggestionResearch', prompt: 'suggestionPromptResearch' },
+]
+
 export const ChatInput = memo(function ChatInput({ sessionId }: { sessionId: string | null }) {
   // 切换目标时释放录音、转写和 DOM 状态；文字与附件由草稿服务保留。
   return <Input key={sessionId === null ? 'new' : `session:${sessionId}`} sessionId={sessionId} />
@@ -170,6 +178,23 @@ const Input = ({ sessionId }: { sessionId: string | null }) => {
       }}
     >
       <DraftAttachments items={attachments} onRetry={retryFile} onRemove={removeFile} />
+      {sessionId !== null ? (
+        <div className={styles.suggestions}>
+          {SUGGESTIONS.map((item) => (
+            <button
+              key={item.label}
+              type="button"
+              className={styles.suggestion}
+              onClick={() => {
+                setText(t(item.prompt))
+                textareaRef.current?.focus()
+              }}
+            >
+              {t(item.label)}
+            </button>
+          ))}
+        </div>
+      ) : null}
       <div className={styles.textareaWrapper}>
         <textarea
           ref={textareaRef}

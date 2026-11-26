@@ -204,3 +204,9 @@ chat-demo 提供两个纯前端沙箱工具，不需要服务器执行代码、�
 - Python：Pyodide + matplotlib 自动出图
 - 公式：KaTeX + mhchem（`\ce`）+ physics 宏
 - 画布 iframe 注入错误回传（控制台）
+
+## 独立演示页部署
+
+- 文件：`examples/gemini-canvas-demo.html`
+- 服务器位置：`/home/wwwroot/chat-demo-demo/gemini-canvas.html`（nginx `deploy/nginx-demo.conf`）
+- 访问：<https://aecci.net/demo/gemini-canvas.html>
