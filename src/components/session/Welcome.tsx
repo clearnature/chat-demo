@@ -48,9 +48,6 @@ export const Welcome = () => {
   return (
     <div className={styles.container}>
       {isMobile ? <MobileHeader /> : null}
-      <div className={styles.topbar}>
-        <ChatTopActions />
-      </div>
       <div className={styles.welcome}>
         <div className={styles.greeting}>{t('welcomeMessageChat250808')}</div>
         <div className={styles.demos}>
@@ -67,6 +64,9 @@ export const Welcome = () => {
           ))}
         </div>
         <ChatInput sessionId={null} />
+        <div className={styles.belowInput}>
+          <ChatTopActions />
+        </div>
         {isMobile ? <div className={styles.caveat}>{t('contentCaveat')}</div> : null}
       </div>
     </div>

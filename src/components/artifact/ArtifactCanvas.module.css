@@ -6,8 +6,8 @@
   position: relative;
   flex: 0 0 auto;
   height: 100%;
-  width: clamp(420px, 52%, 860px);
-  min-width: 420px;
+  width: clamp(380px, 46%, 820px);
+  min-width: 380px;
   background: var(--ds-bg, #fff);
   border-left: 1px solid var(--ds-border, #e5e7eb);
   box-shadow: -8px 0 24px rgba(15, 23, 42, 0.06);

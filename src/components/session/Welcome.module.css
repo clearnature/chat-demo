@@ -117,10 +117,10 @@
   }
 }
 
-.topbar {
-  position: absolute;
-  top: 14px;
-  right: 20px;
-  z-index: 2;
-}
 
+.belowInput {
+  display: flex;
+  justify-content: flex-end;
+  width: 100%;
+  margin-top: 10px;
+}

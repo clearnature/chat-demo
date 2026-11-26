@@ -21,19 +21,16 @@ export const SessionView = ({
   const title = session.title || t('untitledChat')
   return (
     <div className={styles.view}>
-      {isMobile ? (
-        <MobileHeader title={title} />
-      ) : (
-        <div className={styles.header}>
-          <ChatTopActions />
-        </div>
-      )}
+      {isMobile ? <MobileHeader title={title} /> : null}
       <MessageList
         session={session}
         streaming={streaming}
         footer={
           <div className={styles.inputContainer}>
             <ChatInput sessionId={session.id} />
+            <div className={styles.belowInput}>
+              <ChatTopActions />
+            </div>
             <div className={styles.caveat}>{t('contentCaveat')}</div>
           </div>
         }
