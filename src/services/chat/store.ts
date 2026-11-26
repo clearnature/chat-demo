@@ -1016,6 +1016,7 @@ const streamReply = async (sessionId: string, initial: AssistantMessage, request
             model: initial.model ?? settings.opencodeModel,
             sessionId,
             search: initial.search ?? false,
+            officialApiKey: settings.apiKey ?? '',
             system: SYSTEM_PROMPT,
           },
           signal: controller.signal,

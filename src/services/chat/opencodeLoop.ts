@@ -10,6 +10,8 @@ import { createId } from '../../utils/id.js'
 import { applyEvent, settleReply } from './reply.js'
 import {
   clientTools,
+  configureRetrieve,
+  hasOfficialKey,
   executeToolCall,
   toServerToolUseBlock,
   toToolUseParam,
@@ -41,6 +43,8 @@ export type OpenCodeLoopSettings = {
   sessionId: string
   /** 是否启用智能搜索（web_search）；web_fetch 始终可用 */
   search: boolean
+  /** DeepSeek 官方 API Key（配置后额外提供 retrieve_info 深度研究检索） */
+  officialApiKey: string
   /** 系统提示词 */
   system: string
 }
@@ -84,6 +88,7 @@ const buildMessages = (request: OpenCodeLoopRequest): { system: string; messages
 
 export const runOpenCodeReply = async (request: OpenCodeLoopRequest): Promise<AssistantMessage> => {
   const { settings, signal, onUpdate } = request
+  configureRetrieve(settings.officialApiKey)
   const transport = {
     baseUrl: '/oc-api',
     apiKey: settings.apiKey,
@@ -141,7 +146,7 @@ export const runOpenCodeReply = async (request: OpenCodeLoopRequest): Promise<As
         max_tokens: MAX_OUTPUT_TOKENS,
         system,
         messages,
-        tools: clientTools(settings.search),
+        tools: clientTools(settings.search, hasOfficialKey(settings.officialApiKey) ? settings.officialApiKey : ''),
       },
       signal
     )
