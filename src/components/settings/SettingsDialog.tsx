@@ -62,6 +62,7 @@ const sections: { value: SettingsSection; label: TranslationKey; icon: ReactNode
     label: 'settingDialogAsideGeneralOptionLabel',
     icon: <IconSettingsOutline16 />,
   },
+  { value: 'model', label: 'settingsProvider', icon: <IconSettingsOutline16 /> },
   { value: 'data', label: 'settingDialogAsideDataOptionLabel', icon: <IconDataOutline16 /> },
 ]
 
@@ -124,7 +125,7 @@ const SettingsContent = ({
               <TtsVoiceSetting />
               <LocationSetting />
             </>
-          ) : (
+          ) : section === 'model' ? (
             <>
               <ProviderSetting />
               {provider === 'opencode' ? (
@@ -139,6 +140,12 @@ const SettingsContent = ({
               ) : (
                 <ApiKeyField editor={apiKeyEditor} />
               )}
+              {isMobile ? (
+                <ApiKeyConfirm editor={provider === 'opencode' ? opencodeKeyEditor : apiKeyEditor} />
+              ) : null}
+            </>
+          ) : (
+            <>
               <ImportHistory historyImport={historyImport} disabled={historyBusy} />
               <ExportHistory disabled={historyBusy} />
               <SettingCell
@@ -156,9 +163,6 @@ const SettingsContent = ({
                   </Button>
                 }
               />
-              {isMobile ? (
-                <ApiKeyConfirm editor={provider === 'opencode' ? opencodeKeyEditor : apiKeyEditor} />
-              ) : null}
             </>
           )}
         </div>

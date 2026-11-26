@@ -15,7 +15,7 @@ export const ModelSelector = ({ className }: { className?: string }) => {
     <button
       type="button"
       className={clsx(styles.selector, className)}
-      onClick={() => openSettings('general')}
+      onClick={() => openSettings('model')}
       title={t('settingsProviderDescription')}
     >
       <span className={styles.spark}>✦</span>

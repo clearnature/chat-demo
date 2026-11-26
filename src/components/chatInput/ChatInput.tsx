@@ -187,7 +187,8 @@ const Input = ({ sessionId }: { sessionId: string | null }) => {
               className={styles.suggestion}
               onClick={() => {
                 setText(t(item.prompt))
-                textareaRef.current?.focus()
+                // send() 内部读取最新草稿：空闲时立即发送；生成中则保留文本待手动发送
+                send()
               }}
             >
               {t(item.label)}
