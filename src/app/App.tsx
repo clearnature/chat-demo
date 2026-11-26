@@ -133,8 +133,8 @@ export const App = () => {
           </div>
           <VisitorIp />
         </main>
+        <ArtifactCanvas />
         <SearchPanel />
-      <ArtifactCanvas />
       </div>
       <SettingsDialog />
       <Toast />
