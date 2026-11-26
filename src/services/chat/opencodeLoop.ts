@@ -1,4 +1,5 @@
 import { streamAnthropicMessage } from '../api/anthropic.js'
+import { outputLimitForModel } from '../api/opencode.js'
 import type {
   AnthropicContentBlock,
   AnthropicMessage,
@@ -32,8 +33,8 @@ import type { AssistantMessage, Message, UserMessage } from './types.js'
 
 /** 单轮对话内最多执行几次工具往返 */
 const MAX_TOOL_ROUNDS = 3
-/** 单次请求的输出预算 */
-const MAX_OUTPUT_TOKENS = 4096
+/** 模型元数据不可用时的输出上限兜底（不主动限制；元数据可用时按模型最大值） */
+const FALLBACK_MAX_OUTPUT_TOKENS = 131072
 
 export type OpenCodeLoopSettings = {
   apiKey: string
@@ -99,6 +100,9 @@ export const runOpenCodeReply = async (request: OpenCodeLoopRequest): Promise<As
     sessionId: settings.sessionId,
   }
   const { system, messages } = buildMessages(request)
+  // 不人为限制输出：按模型声明的最大输出 tokens；拿不到元数据时用高值兜底
+  const maxOutputTokens =
+    (await outputLimitForModel(settings.apiKey, settings.model, signal)) ?? FALLBACK_MAX_OUTPUT_TOKENS
   let reply = request.initial
   onUpdate(reply)
 
@@ -147,7 +151,7 @@ export const runOpenCodeReply = async (request: OpenCodeLoopRequest): Promise<As
       transport,
       {
         model: settings.model,
-        max_tokens: MAX_OUTPUT_TOKENS,
+        max_tokens: maxOutputTokens,
         system,
         messages,
         tools: clientTools(settings.search),

@@ -245,3 +245,14 @@ Google CSE 正常）。当限额触发、搜索结果为空或质量下降时，
 - 官方路径解析失败时，若配置了 OpenCode Key，**自动降级**到本地检索+综合路径。
 - 验证：解析器 7 组 fixture 单测通过；E2E「无效官方 Key + 有效 OpenCode Key」得到
   `401 → searx×2 → read-api×7 → oc-api/responses×2 → 带来源回答`。
+
+### 7.2 输出上限（2026-11-26）：不再人为限制
+
+- OpenCode 请求不再使用固定的 `max_tokens: 4096`；改为从 `/oc-api/models` 的
+  `limit.output` 取**模型自身最大输出**（deepseek-v4.1-flash/pro 384000、grok-4.7 500000、
+  glm-5.3 131072、claude-haiku-5-5 128000…），元数据不可用时兜底 131072。
+- retrieve_info 本地综合移除 `max_output_tokens: 3000`，使用服务端默认/最大值。
+- 上下文：模型 `limit.context` 大多为 1M tokens，chat-demo 不截断历史文本轮次。
+- 仍保留的工具侧限制（非输出上限）：web_fetch 正文 16000 字符、工具结果 clip 12000 字符、
+  搜索 8 条、工具循环最多 3 轮（可按需调整）。
+- 验证：E2E 捕获请求体 `max_tokens: 384000`（deepseek-v4.1-flash）。

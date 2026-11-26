@@ -106,6 +106,8 @@ export type OpenCodeModel = {
   id: string
   /** 服务端展示名；缺省时界面回退为 id */
   name: string | null
+  /** 服务端声明的上下文/输出上限（tokens） */
+  limit?: { context?: number; output?: number }
 }
 
 /** 模型列表短时缓存，避免每次打开设置都请求 */
@@ -125,7 +127,19 @@ const readModels = (payload: unknown): OpenCodeModel[] => {
     if (typeof item.type === 'string' && item.type !== 'chat') {
       continue
     }
-    models.push({ id: item.id, name: typeof item.name === 'string' ? item.name : null })
+    const rawLimit = isRecord(item.limit) ? item.limit : null
+    models.push({
+      id: item.id,
+      name: typeof item.name === 'string' ? item.name : null,
+      ...(rawLimit
+        ? {
+            limit: {
+              ...(typeof rawLimit.context === 'number' ? { context: rawLimit.context } : {}),
+              ...(typeof rawLimit.output === 'number' ? { output: rawLimit.output } : {}),
+            },
+          }
+        : {}),
+    })
   }
   return models
 }
@@ -145,6 +159,21 @@ export const fetchOpenCodeModels = async (
   const models = readModels(await response.json())
   modelCache = { apiKey, at: Date.now(), models }
   return models
+}
+
+/** 查询某个模型声明的最大输出 tokens；未知模型或请求失败时返回 undefined */
+export const outputLimitForModel = async (
+  apiKey: string,
+  modelId: string,
+  signal?: AbortSignal
+): Promise<number | undefined> => {
+  try {
+    const models = await fetchOpenCodeModels(apiKey, { signal })
+    const output = models.find((model) => model.id === modelId)?.limit?.output
+    return typeof output === 'number' && output > 0 ? output : undefined
+  } catch {
+    return undefined
+  }
 }
 
 /** 用 GET /models 校验 Key（不产生生成费用），失败抛 ApiError */

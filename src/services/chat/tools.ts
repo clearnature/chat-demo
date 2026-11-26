@@ -527,7 +527,6 @@ const synthesizeKnowledge = async (
   const body = {
     model: retrieveConfig.model,
     input: [{ role: 'user', content: prompt }],
-    max_output_tokens: 3000,
     text: {
       format: { type: 'json_schema', name: 'knowledge_extract', schema: KNOWLEDGE_SCHEMA },
     },
@@ -564,7 +563,6 @@ const synthesizeKnowledge = async (
   return requestOnce({
     model: retrieveConfig.model,
     input: [{ role: 'user', content: `${prompt}\n\n只输出 JSON，不要任何解释或 Markdown 代码块。` }],
-    max_output_tokens: 3000,
   })
 }
 
