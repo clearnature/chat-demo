@@ -42,9 +42,10 @@ export const SandboxCard = ({ part }: { part: SandboxPart }) => {
     return () => window.removeEventListener('message', onMessage)
   }, [part.id])
 
-  // HTML 产物生成完成后自动打开右侧画布
+  // 新生成的 HTML 产物自动打开右侧画布；历史会话里的旧产物不自动弹出
   useEffect(() => {
-    if (part.kind === 'html' && part.status === 'done' && html && !autoOpened.current) {
+    const fresh = Date.now() - part.createdAt < 120_000
+    if (part.kind === 'html' && part.status === 'done' && html && fresh && !autoOpened.current) {
       autoOpened.current = true
       openArtifactCanvas(part)
     }

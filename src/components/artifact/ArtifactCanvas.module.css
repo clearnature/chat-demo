@@ -229,6 +229,18 @@
   color: var(--ds-text-secondary, #6b7280);
 }
 
+/* 中等宽度：画布改为覆盖层，保证聊天列不被分屏挤压 */
+@media (max-width: 1180px) {
+  .canvas {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    min-width: 0;
+    height: 100%;
+    z-index: 1000;
+  }
+}
+
 @media (max-width: 768px) {
   .canvas {
     position: fixed;
