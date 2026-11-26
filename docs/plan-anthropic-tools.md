@@ -224,7 +224,13 @@ Google CSE 正常）。当限额触发、搜索结果为空或质量下降时，
 - **缓存**：浏览器内存缓存（同一问题 24h 内命中直接返回，最多 30 条），避免重复付费与延迟
 - **UI 复用**：结果归一化为 `server_tool_use(kind=deep_search)` +
   `web_search_tool_result(kind=deep_search)`，直接复用现有「边想边搜/来源」渲染与归档
-- **触发条件**：智能搜索开关打开 + 配置了 DeepSeek 官方 Key；工具列表 = `web_search` + `web_fetch` + `retrieve_info`
+- **触发条件**：智能搜索开关打开即提供；工具列表 = `web_search` + `web_fetch` + `retrieve_info`
+- **双模式**：
+  - 配置了 DeepSeek 官方 Key → `POST https://api.deepseek.com/responses`（服务端 `web_search` + `json_schema`）
+  - 只有 OpenCode Key → **客户端回退**：SearXNG 搜索 → `web_fetch` 抓取前 3 个来源 → OpenCode
+    `/oc-api/responses` 按 `knowledge_extract` schema 综合（OpenCode Responses 实测支持协议与 json_schema，
+    但**不执行**服务端 web_search，因此回退版由本地工具提供检索素材）
+  - 该回退版已验证：`/searx` ×2 → `/read-api` ×4 → `/oc-api/responses` ×1 → 带来源的最终回答
 
 > 说明：Reasonix 原版还包含 decompose/多级检索/蒸馏记忆/concept index 等完整管道；chat-demo 版本是
 > 单次 Responses 深度研究检索 + 结果缓存的精简移植，保持与浏览器端一致的成本模型。

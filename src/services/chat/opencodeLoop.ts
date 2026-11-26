@@ -11,7 +11,6 @@ import { applyEvent, settleReply } from './reply.js'
 import {
   clientTools,
   configureRetrieve,
-  hasOfficialKey,
   executeToolCall,
   toServerToolUseBlock,
   toToolUseParam,
@@ -88,7 +87,12 @@ const buildMessages = (request: OpenCodeLoopRequest): { system: string; messages
 
 export const runOpenCodeReply = async (request: OpenCodeLoopRequest): Promise<AssistantMessage> => {
   const { settings, signal, onUpdate } = request
-  configureRetrieve(settings.officialApiKey)
+  configureRetrieve({
+    officialApiKey: settings.officialApiKey,
+    opencodeApiKey: settings.apiKey,
+    model: settings.model,
+    sessionId: settings.sessionId,
+  })
   const transport = {
     baseUrl: '/oc-api',
     apiKey: settings.apiKey,
@@ -146,7 +150,7 @@ export const runOpenCodeReply = async (request: OpenCodeLoopRequest): Promise<As
         max_tokens: MAX_OUTPUT_TOKENS,
         system,
         messages,
-        tools: clientTools(settings.search, hasOfficialKey(settings.officialApiKey) ? settings.officialApiKey : ''),
+        tools: clientTools(settings.search),
       },
       signal
     )
