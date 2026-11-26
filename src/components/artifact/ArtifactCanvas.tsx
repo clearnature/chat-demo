@@ -76,8 +76,47 @@ export const ArtifactCanvas = () => {
   const errorText = useMemo(() => logs.filter((line) => line.startsWith('[error]')).join('\n'), [logs])
   const hasIssues = errorText.length > 0 || artifact?.status === 'failed'
 
-  if (!open || !artifact) {
+  if (!open) {
     return null
+  }
+
+  // 空画布：从右上角「打开画布」进入且还没有产物
+  if (!artifact) {
+    return (
+      <>
+        {!fullscreen ? <div className={styles.backdrop} onClick={closeArtifactCanvas} /> : null}
+        <aside
+          className={`${styles.canvas} ${fullscreen ? styles.fullscreen : ''}`}
+          role="dialog"
+          aria-label={t('canvasTitle')}
+        >
+          <header className={styles.header}>
+            <div className={styles.titleWrap}>
+              <span className={styles.icon}>🎨</span>
+              <span className={styles.title}>{t('canvasTitle')}</span>
+            </div>
+            <div className={styles.actions}>
+              <button
+                type="button"
+                className={styles.action}
+                onClick={toggleFullscreen}
+              >
+                {fullscreen ? t('canvasExitFullscreen') : t('canvasFullscreen')}
+              </button>
+              <button
+                type="button"
+                className={styles.close}
+                onClick={closeArtifactCanvas}
+                aria-label={t('canvasClose')}
+              >
+                ✕
+              </button>
+            </div>
+          </header>
+          <div className={styles.emptyState}>{t('canvasEmptyHint')}</div>
+        </aside>
+      </>
+    )
   }
 
   const sendToAi = () => {

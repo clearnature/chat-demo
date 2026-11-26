@@ -1,0 +1,39 @@
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.fileInput {
+  display: none;
+}
+
+.action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 1px solid var(--dsw-alias-border-secondary, #e5e7eb);
+  border-radius: 999px;
+  background: var(--dsw-alias-bg-overlay, rgba(255, 255, 255, 0.72));
+  color: var(--dsw-alias-label-secondary, #6b7280);
+  font-size: 12.5px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.action:hover {
+  border-color: #9b72cb;
+  color: #6d5bd0;
+  background: rgba(155, 114, 203, 0.08);
+}
+
+.action:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.icon {
+  font-size: 14px;
+}

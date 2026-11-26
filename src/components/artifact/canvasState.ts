@@ -13,6 +13,7 @@ type CanvasState = {
   /** 按产物 id 收集 iframe 回传的报错/console 信息（关闭画布后仍保留） */
   logsByArtifact: Record<string, string[]>
   openCanvas: (artifact: SandboxPart) => void
+  openBlank: () => void
   closeCanvas: () => void
   replaceArtifact: (artifact: SandboxPart) => void
   setTab: (tab: CanvasTab) => void
@@ -29,6 +30,7 @@ export const useArtifactCanvas = create<CanvasState>((set, get) => ({
   fullscreen: false,
   logsByArtifact: {},
   openCanvas: (artifact) => set({ open: true, artifact, lastArtifact: artifact, tab: 'preview' }),
+  openBlank: () => set({ open: true, artifact: null, tab: 'preview' }),
   closeCanvas: () => set({ open: false, artifact: null, fullscreen: false }),
   replaceArtifact: (artifact) =>
     set((state) => ({
