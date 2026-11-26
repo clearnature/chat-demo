@@ -8,6 +8,12 @@ import type {
   WebSearchToolResultBlock,
 } from '../api/types.js'
 import type { ReplyBlock } from './types.js'
+import {
+  KNOWLEDGE_SCHEMA,
+  parseKnowledge,
+  readResponsesText,
+  type RetrieveKnowledge,
+} from './retrieveParse.js'
 
 /**
  * OpenCode Anthropic 路径的客户端工具：web_search（本地 SearXNG）与 web_fetch（服务端正文抓取）。
@@ -303,36 +309,10 @@ const RETRIEVE_TIMEOUT = 120 * 1000
 
 const retrieveCache = new Map<string, { at: number; value: RetrieveKnowledge }>()
 
-type RetrieveSource = { title: string; url: string }
-type RetrieveKnowledge = {
-  answer: string
-  facts: string[]
-  sources: RetrieveSource[]
-}
-
-const KNOWLEDGE_SCHEMA = {
-  type: 'object',
-  properties: {
-    answer: { type: 'string', description: '综合答案（Markdown，包含关键结论）' },
-    facts: { type: 'array', items: { type: 'string' }, description: '关键事实列表' },
-    sources: {
-      type: 'array',
-      items: {
-        type: 'object',
-        properties: { title: { type: 'string' }, url: { type: 'string' } },
-        required: ['title', 'url'],
-        additionalProperties: false,
-      },
-    },
-  },
-  required: ['answer', 'facts', 'sources'],
-  additionalProperties: false,
-} as const
-
 export const retrieveInfoTool: ClientToolDef = {
   name: 'retrieve_info',
   description:
-    'Deep research retrieval backed by DeepSeek server-side web search. Use for research questions that need authoritative multi-source synthesis; returns a synthesized answer, key facts and cited sources. Slower/costlier than web_search; prefer web_search for simple or very recent lookups, and web_fetch for reading one specific page.',
+    'Deep research retrieval: returns a synthesized answer, key facts and cited sources. Uses DeepSeek server-side web search when an official key is configured, otherwise searches locally and reads the top pages. Slower/costlier than web_search; prefer web_search for simple or very recent lookups, and web_fetch for reading one specific page.',
   input_schema: {
     type: 'object',
     properties: {
@@ -362,78 +342,6 @@ const writeRetrieveCache = (query: string, value: RetrieveKnowledge): void => {
       break
     }
     retrieveCache.delete(oldest)
-  }
-}
-
-/** 从 Responses API 输出里取 JSON 文本（output_text 或 message content） */
-const readResponsesText = (payload: unknown): string => {
-  if (payload === null || typeof payload !== 'object') {
-    return ''
-  }
-  const value = payload as { output_text?: unknown; output?: unknown }
-  if (typeof value.output_text === 'string') {
-    return value.output_text
-  }
-  if (!Array.isArray(value.output)) {
-    return ''
-  }
-  const parts: string[] = []
-  for (const item of value.output) {
-    if (item === null || typeof item !== 'object') {
-      continue
-    }
-    const content = (item as { content?: unknown }).content
-    if (!Array.isArray(content)) {
-      continue
-    }
-    for (const block of content) {
-      if (block !== null && typeof block === 'object') {
-        const textValue = (block as { text?: unknown }).text
-        if (typeof textValue === 'string') {
-          parts.push(textValue)
-        }
-      }
-    }
-  }
-  return parts.join('\n')
-}
-
-const parseKnowledge = (raw: string): RetrieveKnowledge | null => {
-  const textValue = raw.trim()
-  if (!textValue) {
-    return null
-  }
-  // 模型可能包裹 Markdown 代码块
-  const json = textValue.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '')
-  try {
-    const value: unknown = JSON.parse(json)
-    if (value === null || typeof value !== 'object') {
-      return null
-    }
-    const record = value as { answer?: unknown; facts?: unknown; sources?: unknown }
-    const answer = text(record.answer)
-    if (!answer) {
-      return null
-    }
-    const facts = Array.isArray(record.facts) ? record.facts.map(text).filter(Boolean) : []
-    const sources = Array.isArray(record.sources)
-      ? record.sources
-          .map((item) => {
-            if (item === null || typeof item !== 'object') {
-              return null
-            }
-            const source = item as { title?: unknown; url?: unknown }
-            const url = text(source.url)
-            if (!/^https?:\/\//i.test(url)) {
-              return null
-            }
-            return { title: text(source.title) || url, url }
-          })
-          .filter((item): item is RetrieveSource => item !== null)
-      : []
-    return { answer, facts, sources }
-  } catch {
-    return null
   }
 }
 
@@ -510,9 +418,13 @@ const executeRetrieveOfficial = async (
       return failedSearch(call.id, `retrieve_info: upstream ${response.status} ${body.slice(0, 200)}`)
     }
     const payload: unknown = await response.json()
-    const knowledge = parseKnowledge(readResponsesText(payload))
+    const raw = readResponsesText(payload)
+    const knowledge = parseKnowledge(raw)
     if (!knowledge) {
-      return failedSearch(call.id, 'retrieve_info: response did not contain structured knowledge')
+      return failedSearch(
+        call.id,
+        `retrieve_info: response did not contain structured knowledge (raw: ${raw.slice(0, 160)})`
+      )
     }
     writeRetrieveCache(query, knowledge)
     return {
@@ -712,7 +624,15 @@ const executeRetrieve = async (call: ToolCall, signal: AbortSignal): Promise<Too
     }
   }
   if (retrieveConfig.officialApiKey) {
-    return executeRetrieveOfficial(call, query, signal)
+    const official = await executeRetrieveOfficial(call, query, signal)
+    if (official.ok) {
+      return official
+    }
+    // 官方 Responses 未返回结构化知识时，自动降级到本地检索 + 综合
+    if (retrieveConfig.opencodeApiKey) {
+      return executeRetrieveLocal(call, query, signal)
+    }
+    return official
   }
   if (retrieveConfig.opencodeApiKey) {
     return executeRetrieveLocal(call, query, signal)

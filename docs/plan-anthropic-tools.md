@@ -234,3 +234,14 @@ Google CSE 正常）。当限额触发、搜索结果为空或质量下降时，
 
 > 说明：Reasonix 原版还包含 decompose/多级检索/蒸馏记忆/concept index 等完整管道；chat-demo 版本是
 > 单次 Responses 深度研究检索 + 结果缓存的精简移植，保持与浏览器端一致的成本模型。
+
+### 7.1 修复记录（2026-11-26）：官方 Responses 解析 + 自动回退
+
+- 线上曾报 `retrieve_info: response did not contain structured knowledge`：根因是
+  Responses 输出里同时存在 `reasoning`（`reasoning_text`）与 `message`（`output_text`），
+  旧解析把思考文本一并拼进 JSON 导致 parse 失败。
+- 抽出 `src/services/chat/retrieveParse.ts`：只收集 `message` 条目的 `output_text/text`，
+  跳过 reasoning；并容忍前后解释文字、Markdown 代码块（提取首个配平 JSON 对象）。
+- 官方路径解析失败时，若配置了 OpenCode Key，**自动降级**到本地检索+综合路径。
+- 验证：解析器 7 组 fixture 单测通过；E2E「无效官方 Key + 有效 OpenCode Key」得到
+  `401 → searx×2 → read-api×7 → oc-api/responses×2 → 带来源回答`。
