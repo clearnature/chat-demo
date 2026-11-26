@@ -125,6 +125,7 @@ export const toServerToolUseBlock = (call: ToolCall): ServerToolUseBlock => {
       input: { action: 'search', queries: query ? [query] : [] },
       caller: { type: 'direct' },
       kind: 'deep_search',
+      clientTool: 'retrieve_info',
     }
   }
   if (call.name === 'web_fetch') {

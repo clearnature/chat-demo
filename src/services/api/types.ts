@@ -58,6 +58,8 @@ export type ServerToolUseBlock = {
   input: ServerToolInput
   caller: { type: 'direct' }
   kind: ServerToolKind
+  /** 客户端工具来源标记（仅本地渲染用，不是服务端字段）：retrieve_info 等 */
+  clientTool?: 'retrieve_info'
 }
 
 export type WebSearchResult = {

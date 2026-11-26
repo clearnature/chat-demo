@@ -44,6 +44,8 @@ export type SearchStep = {
   queries: string[]
   results: Source[]
   status: ToolStatus
+  /** 客户端工具来源（retrieve_info 深度研究），用于区分展示文案 */
+  sourceTool?: 'retrieve_info'
 }
 
 export type PageItem = {
@@ -302,6 +304,7 @@ export const buildReplyView = (reply: AssistantMessage, streaming: boolean): Rep
           queries: [...queries],
           results: found,
           status,
+          ...(block.clientTool ? { sourceTool: block.clientTool } : {}),
         }
         steps.push(step)
         if (!isDeepSearchKind(kind)) {

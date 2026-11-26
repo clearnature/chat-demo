@@ -202,39 +202,60 @@ const SearchRow = ({
   const panelEntry = `${message.id}-search-${step.key}`
   const failed = step.status === 'failed'
   const interrupted = failed && !streaming && message.status === 'stopped'
+  const isRetrieve = step.sourceTool === 'retrieve_info'
 
   let body: ReactNode
   if (wip) {
     body =
       step.queries.length > 0 ? (
         <>
-          <span className={styles.prefix}>{t('toolSearchIntro')}</span>
+          <span className={styles.prefix}>
+            {t(isRetrieve ? 'toolRetrieveIntro' : 'toolSearchIntro')}
+          </span>
           <span className={styles.query} key={tick}>
             {step.queries[tick % step.queries.length]}
           </span>
         </>
       ) : (
-        <span>{t(isImageSearchKind(step.kind) ? 'imageSearching' : 'messageSearching')}</span>
+        <span>
+          {t(
+            isRetrieve
+              ? 'retrieveSearching'
+              : isImageSearchKind(step.kind)
+                ? 'imageSearching'
+                : 'messageSearching'
+          )}
+        </span>
       )
   } else if (interrupted) {
-    body = <span>{t('searchStopped')}</span>
+    body = <span>{t(isRetrieve ? 'retrieveStopped' : 'searchStopped')}</span>
   } else if (failed) {
-    body = <span>{t('toolSearchFail')}</span>
+    body = <span>{t(isRetrieve ? 'retrieveFail' : 'toolSearchFail')}</span>
   } else if (count === 0) {
     body = (
-      <span>{t(isDeepSearchKind(step.kind) ? 'toolSearchNoResult' : 'messageSearchNoResult')}</span>
+      <span>
+        {t(
+          isRetrieve
+            ? 'retrieveNoResult'
+            : isDeepSearchKind(step.kind)
+              ? 'toolSearchNoResult'
+              : 'messageSearchNoResult'
+        )}
+      </span>
     )
   } else {
-    const text = t(
-      isDeepSearchKind(step.kind)
-        ? count === 1
-          ? 'toolSearch1Result'
-          : 'toolSearchResults'
-        : count === 1
-          ? 'messageSearchResult'
-          : 'messageSearchResults',
-      { count }
-    )
+    const text = isRetrieve
+      ? t(count === 1 ? 'retrieveResult1' : 'retrieveResults', { count })
+      : t(
+          isDeepSearchKind(step.kind)
+            ? count === 1
+              ? 'toolSearch1Result'
+              : 'toolSearchResults'
+            : count === 1
+              ? 'messageSearchResult'
+              : 'messageSearchResults',
+          { count }
+        )
     body = (
       <>
         <span className={styles.summary}>{text}</span>
