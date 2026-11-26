@@ -37,6 +37,8 @@ export type AnthropicRequestBody = {
   tools?: ClientToolDef[]
   thinking?: { type: 'enabled'; budget_tokens?: number } | { type: 'disabled' }
   temperature?: number
+  /** 强制模型调用指定工具（Anthropic Messages 协议） */
+  tool_choice?: { type: 'tool'; name: string } | { type: 'any' } | { type: 'auto' }
   [key: string]: unknown
 }
 

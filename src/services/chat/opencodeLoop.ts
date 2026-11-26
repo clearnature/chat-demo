@@ -38,6 +38,30 @@ const FALLBACK_MAX_OUTPUT_TOKENS = 131072
 /** 在浏览器沙箱执行、不需要内部 server_tool_use 块的工具 */
 const SANDBOX_TOOLS = new Set(['python_sandbox', 'render_frontend_artifact'])
 
+/**
+ * 从用户提问中识别「必须产出画布/沙箱结果」的意图。
+ * 返回需要强制调用的工具名；普通问答返回 null，保持自动工具选择。
+ */
+const requiredCanvasTool = (question: string): 'render_frontend_artifact' | 'python_sandbox' | null => {
+  const text = question.toLowerCase()
+  if (text.includes('render_frontend_artifact')) {
+    return 'render_frontend_artifact'
+  }
+  if (text.includes('python_sandbox') || text.includes('pyodide')) {
+    return 'python_sandbox'
+  }
+  const action = /(用|写|做|生成|渲染|画|创建|实现|演示|跑|执行|计算|build|create|render|show|make|run|plot)/i
+  const canvas = /(画布|canvas|3d|three\.?js|粒子|动画|可视化|前端产物|katex|mhchem|公式|页面|演示)/i
+  const python = /(python|matplotlib|numpy|pandas|绘图|曲线|科学计算)/i
+  if (python.test(text) && action.test(question)) {
+    return 'python_sandbox'
+  }
+  if (canvas.test(text) && action.test(question)) {
+    return 'render_frontend_artifact'
+  }
+  return null
+}
+
 export type OpenCodeLoopSettings = {
   apiKey: string
   model: string
@@ -107,6 +131,12 @@ export const runOpenCodeReply = async (request: OpenCodeLoopRequest): Promise<As
     (await outputLimitForModel(settings.apiKey, settings.model, signal)) ?? FALLBACK_MAX_OUTPUT_TOKENS
   let reply = request.initial
   onUpdate(reply)
+  // 工作流：渲染类请求强制调用对应工具；若模型仍只回文字，追加一次重试提醒
+  const forcedTool = requiredCanvasTool(request.question.content)
+  let toolChoice: { type: 'tool'; name: string } | undefined = forcedTool
+    ? { type: 'tool', name: forcedTool }
+    : undefined
+  let repaired = false
 
   for (let round = 0; round < MAX_TOOL_ROUNDS; round += 1) {
     const blockIndexes = new Map<number, number>()
@@ -193,6 +223,7 @@ export const runOpenCodeReply = async (request: OpenCodeLoopRequest): Promise<As
         system,
         messages,
         tools: clientTools(settings.search),
+        ...(toolChoice ? { tool_choice: toolChoice } : {}),
       },
       signal
     )
@@ -216,8 +247,22 @@ export const runOpenCodeReply = async (request: OpenCodeLoopRequest): Promise<As
     }
     // 没有工具调用（或模型选择直接回答）→ 正常结束
     if (reply.stopReason !== 'tool_use' || calls.length === 0) {
+      // 工作流兜底：本应产出画布，但模型只回了文字 → 追加一次明确的工具调用要求
+      if (forcedTool && !repaired) {
+        repaired = true
+        if (roundText.trim()) {
+          messages.push({ role: 'assistant', content: [{ type: 'text', text: roundText }] })
+        }
+        messages.push({
+          role: 'user',
+          content: `请调用 ${forcedTool} 工具完成渲染/执行，必须提供工具参数；不要只返回文字说明或声称已渲染。`,
+        })
+        continue
+      }
       return settleReply(reply, 'done', Date.now())
     }
+    // 工具调用已经发生，后续轮次恢复自动选择
+    toolChoice = undefined
     // 已经是最后一轮：保留工具调用结果，但不再回传，避免超出轮次预算
     if (round + 1 >= MAX_TOOL_ROUNDS) {
       return settleReply(reply, 'done', Date.now())

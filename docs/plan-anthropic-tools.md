@@ -343,3 +343,12 @@ Google CSE 正常）。当限额触发、搜索结果为空或质量下降时，
   内置示例（Canvas 粒子 + KaTeX/mhchem），点「运行」直接出结果；产物视图支持新建/刷新/下载/全屏。
 - 兜底：回复文本声称已渲染但本轮没有 sandbox 块时，消息下方显示「未检测到画布产物」+「打开画布」按钮。
 - 验证：用户原 prompt 现在会真正产出画布卡片并自动打开；空白画布运行生成 5.3KB srcdoc（含 katex/mhchem）。
+
+### 9.6 工具工作流：强制 tool_choice + 一次重试（2026-11-26）
+
+- 仅靠系统提示无法保证模型调用工具。OpenCode 循环新增工作流守卫：
+  1. 从用户问题识别渲染意图（显式 `render_frontend_artifact`/`python_sandbox`，或“画布/Canvas/3D/动画/公式/页面/演示/绘图”等 + 动作动词）；
+  2. 命中时首轮请求带 `tool_choice: {type:'tool', name:'render_frontend_artifact'|'python_sandbox'}` 强制调用；
+  3. 若模型仍只返回文字（无 tool_use），自动追加一条“必须调用工具”的 user 提醒并重试一次；
+  4. 工具成功调用后恢复自动选择，避免连续强制。
+- 已验证：`用画布渲染一个红色方块…` → 画布卡片出现并自动打开（iframe 正常）；端到端 curl 确认 `/oc-api/messages` 支持 tool_choice。
