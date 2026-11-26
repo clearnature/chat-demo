@@ -352,3 +352,11 @@ Google CSE 正常）。当限额触发、搜索结果为空或质量下降时，
   3. 若模型仍只返回文字（无 tool_use），自动追加一条“必须调用工具”的 user 提醒并重试一次；
   4. 工具成功调用后恢复自动选择，避免连续强制。
 - 已验证：`用画布渲染一个红色方块…` → 画布卡片出现并自动打开（iframe 正常）；端到端 curl 确认 `/oc-api/messages` 支持 tool_choice。
+
+### 9.7 集成 Fable 5 九步技能（2026-11-26）
+
+- 来源：GitHub [THEBLUEGHOSTSSSS/Fable5-Thinking-Skill](https://github.com/THEBLUEGHOSTSSSS/Fable5-Thinking-Skill) 的 `SKILL.md`（九条刚性原则 + 九步闭环工作流）。
+- 集成：`src/services/chat/skillFable5.ts` 保存技能文本，拼接到 `SYSTEM_PROMPT` **强制每轮生效**；
+  同时映射本应用工具（render_frontend_artifact / python_sandbox / web_search / web_fetch / retrieve_info）。
+- 与 9.6 的 tool_choice 强制配合：方法论约束 + 渲染类请求强制工具调用。
+- 验证：拦截 `/oc-api/messages` 请求体，system 字段长度 1337，包含 “Fable 5”“九步闭环”“防虚假完成”。
