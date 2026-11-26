@@ -324,3 +324,11 @@ Google CSE 正常）。当限额触发、搜索结果为空或质量下降时，
 - 修复：改用函数替换 `replace(re, () => head)`；同时渲染时按原始 `code` 重新构建 srcdoc，
   历史会话里的旧坏文档打开画布即自动修复。
 - 验证：旧会话产物重建后 srcdoc 13.7KB、`</head>` 在 `<body>` 前、控制台 0 报错。
+
+### 9.4 画布关闭后重开 / 重新运行（2026-11-26）
+
+- 关闭画布后：消息内沙箱卡片「打开画布」可重开；另新增右下角悬浮「🎨 重新打开画布」按钮
+  （`lastArtifact` 记忆最近产物）。
+- 「重新运行」语义：HTML 产物 = 重载 iframe（增量 `nonce`）；Python 产物 = 真正重新执行
+  Pyodide（`rerunPythonSandbox`），并把 running/done/failed、stdout、图片写回消息里的 sandbox 块。
+- 验证：Python 产物画布重跑后图片正常、状态 done；关闭→悬浮按钮→重开成功。

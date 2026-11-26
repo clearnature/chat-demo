@@ -64,6 +64,7 @@ export const zh = {
   sandboxCode: '代码',
   sandboxRerun: '重新运行',
   canvasTitle: '画布',
+  canvasReopen: '重新打开画布',
   canvasOpen: '打开画布',
   canvasClose: '关闭画布',
   canvasPreview: '预览',

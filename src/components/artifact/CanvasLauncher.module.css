@@ -1,0 +1,26 @@
+.launcher {
+  position: fixed;
+  right: 22px;
+  bottom: 96px;
+  z-index: 800;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 16px;
+  border-radius: 999px;
+  border: 1px solid rgba(155, 114, 203, 0.35);
+  background: var(--ds-bg, #ffffff);
+  color: #6d5bd0;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  box-shadow: 0 8px 24px rgba(76, 48, 140, 0.18);
+}
+
+.launcher:hover {
+  background: rgba(155, 114, 203, 0.08);
+}
+
+.icon {
+  font-size: 15px;
+}

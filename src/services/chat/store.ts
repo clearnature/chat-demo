@@ -35,6 +35,7 @@ import {
   type AssistantMessage,
   type FileAttachment,
   type Message,
+  type SandboxPart,
   type Session,
   type SessionSummary,
   type UserMessage,
@@ -545,6 +546,38 @@ const removeSessionData = async (id: string): Promise<boolean> => {
         persist(id)
       }
     }
+  }
+}
+
+/** 更新某条回复里的沙箱产物（重新运行 Python 等） */
+export const updateSandboxPart = (
+  sessionId: string,
+  artifactId: string,
+  update: (part: SandboxPart) => SandboxPart
+): void => {
+  const session = getSession(sessionId)
+  if (!session) {
+    return
+  }
+  let changed = false
+  const messages = session.messages.map((message) => {
+    if (message.role !== 'assistant') {
+      return message
+    }
+    let messageChanged = false
+    const blocks = message.blocks.map((block) => {
+      if (block.type !== 'sandbox' || block.id !== artifactId) {
+        return block
+      }
+      messageChanged = true
+      changed = true
+      return update(block)
+    })
+    return messageChanged ? { ...message, blocks } : message
+  })
+  if (changed) {
+    updateSession(sessionId, (current) => ({ ...current, messages }))
+    persist(sessionId)
   }
 }
 

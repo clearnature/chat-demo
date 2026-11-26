@@ -68,6 +68,7 @@ export const en = {
   sandboxCode: 'Code',
   sandboxRerun: 'Re-run',
   canvasTitle: 'Canvas',
+  canvasReopen: 'Reopen canvas',
   canvasOpen: 'Open canvas',
   canvasClose: 'Close canvas',
   canvasPreview: 'Preview',

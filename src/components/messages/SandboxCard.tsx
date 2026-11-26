@@ -3,6 +3,8 @@ import { useTranslate } from '../../i18n/index.js'
 import type { SandboxPart } from '../../services/chat/types.js'
 import { resolveArtifactHtml } from '../../services/sandbox/canvasDocument.js'
 import { openArtifactCanvas, useArtifactCanvas } from '../artifact/canvasState.js'
+import { rerunPythonSandbox } from '../../services/sandbox/rerun.js'
+import { useChatStore } from '../../services/chat/store.js'
 import styles from './SandboxCard.module.css'
 
 /**
@@ -15,6 +17,7 @@ export const SandboxCard = ({ part }: { part: SandboxPart }) => {
   const [showCode, setShowCode] = useState(false)
   const [nonce, setNonce] = useState(0)
   const [issueCount, setIssueCount] = useState(0)
+  const [rerunning, setRerunning] = useState(false)
   const autoOpened = useRef(false)
   const seenIssues = useRef<Set<string>>(new Set())
   const html = resolveArtifactHtml(part)
@@ -65,6 +68,24 @@ export const SandboxCard = ({ part }: { part: SandboxPart }) => {
         {part.kind === 'html' && html && !running ? (
           <button type="button" className={styles.button} onClick={() => setNonce((value) => value + 1)}>
             {t('sandboxRerun')}
+          </button>
+        ) : null}
+        {part.kind === 'python' && !running ? (
+          <button
+            type="button"
+            className={styles.button}
+            disabled={rerunning}
+            onClick={async () => {
+              setRerunning(true)
+              try {
+                const updated = await rerunPythonSandbox(part, useChatStore.getState().activeId)
+                useArtifactCanvas.getState().replaceArtifact(updated)
+              } finally {
+                setRerunning(false)
+              }
+            }}
+          >
+            {rerunning ? t('sandboxRunning') : t('sandboxRerun')}
           </button>
         ) : null}
       </div>

@@ -6,6 +6,7 @@ import { setDraftText } from '../../services/chat/drafts.js'
 import { showToast } from '../base/toastState.js'
 import type { SandboxPart } from '../../services/chat/types.js'
 import { resolveArtifactHtml } from '../../services/sandbox/canvasDocument.js'
+import { rerunPythonSandbox } from '../../services/sandbox/rerun.js'
 import styles from './ArtifactCanvas.module.css'
 
 const TABS: { id: CanvasTab; label: 'canvasPreview' | 'canvasCode' | 'canvasConsole' }[] = [
@@ -102,7 +103,19 @@ export const ArtifactCanvas = () => {
             {hasIssues ? <span className={styles.errorBadge}>{t('canvasHasIssues')}</span> : null}
           </div>
           <div className={styles.actions}>
-            <button type="button" className={styles.action} onClick={() => setNonce((value) => value + 1)}>
+            <button
+              type="button"
+              className={styles.action}
+              onClick={async () => {
+                if (artifact.kind === 'python') {
+                  const updated = await rerunPythonSandbox(artifact, activeId)
+                  useArtifactCanvas.getState().replaceArtifact(updated)
+                  setTab('preview')
+                } else {
+                  setNonce((value) => value + 1)
+                }
+              }}
+            >
               {t('sandboxRerun')}
             </button>
             <button type="button" className={styles.action} onClick={() => downloadArtifact(artifact)}>
