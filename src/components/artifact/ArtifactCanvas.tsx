@@ -5,6 +5,7 @@ import { useChatStore, sendMessage } from '../../services/chat/store.js'
 import { setDraftText } from '../../services/chat/drafts.js'
 import { showToast } from '../base/toastState.js'
 import type { SandboxPart } from '../../services/chat/types.js'
+import { resolveArtifactHtml } from '../../services/sandbox/canvasDocument.js'
 import styles from './ArtifactCanvas.module.css'
 
 const TABS: { id: CanvasTab; label: 'canvasPreview' | 'canvasCode' | 'canvasConsole' }[] = [
@@ -49,6 +50,7 @@ export const ArtifactCanvas = () => {
   const activeId = useChatStore((state) => state.activeId)
   const [nonce, setNonce] = useState(0)
   const frameRef = useRef<HTMLIFrameElement | null>(null)
+  const html = artifact ? resolveArtifactHtml(artifact) : undefined
 
   useEffect(() => {
     if (!open || !artifact) {
@@ -130,14 +132,14 @@ export const ArtifactCanvas = () => {
 
         <div className={styles.body}>
           {tab === 'preview' ? (
-            artifact.kind === 'html' && artifact.html ? (
+            artifact.kind === 'html' && html ? (
               <iframe
                 key={nonce}
                 ref={frameRef}
                 className={styles.frame}
                 title={artifact.title ?? 'artifact preview'}
                 sandbox="allow-scripts allow-pointer-lock allow-forms allow-popups"
-                srcDoc={artifact.html}
+                srcDoc={html}
               />
             ) : (
               <div className={styles.pythonPreview}>

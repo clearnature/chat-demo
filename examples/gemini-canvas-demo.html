@@ -247,7 +247,8 @@ function buildCanvasSrcDoc(userCode) {
   if (!/<html/i.test(userCode)) {
     return `<!DOCTYPE html><html><head>${head}</head><body>${userCode}</body></html>`;
   }
-  if (/<\/head>/i.test(userCode)) return userCode.replace(/<\/head>/i, `${head}\n</head>`);
+  // 用函数替换，避免 head 中的 $ 序列被当作替换模式
+  if (/<\/head>/i.test(userCode)) return userCode.replace(/<\/head>/i, () => `${head}\n</head>`);
   return userCode;
 }
 

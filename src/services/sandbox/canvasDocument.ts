@@ -8,6 +8,7 @@
  */
 
 import { PHYSICS_MACROS } from '../markdown/physicsMacros.js'
+import type { SandboxPart } from '../chat/types.js'
 
 const escapeScript = (js: string): string => js.replace(/<\/script>/gi, '<\\/script>')
 
@@ -91,7 +92,8 @@ ${code}
   }
   const head = engineHead(artifactId)
   if (/<\/head>/i.test(code)) {
-    return code.replace(/<\/head>/i, `${head}\n</head>`)
+    // 用函数替换：head 里的 '$' / '$\'' 等不能被当成 replace 的替换模式
+    return code.replace(/<\/head>/i, () => `${head}\n</head>`)
   }
   if (/<head[^>]*>/i.test(code)) {
     return code.replace(/<head[^>]*>/i, (match) => `${match}\n${head}`)
@@ -105,3 +107,17 @@ export const buildModuleSrcDoc = (js: string, artifactId: string): string =>
     `<script type="module">${escapeScript(js)}</script>`,
     artifactId
   )
+
+/**
+ * 取产物最终 iframe 文档：HTML 产物始终用原始 code 重建 srcdoc，
+ * 这样历史消息里旧的（底座有 bug 的）srcdoc 会自动修复。
+ */
+export const resolveArtifactHtml = (part: SandboxPart): string | undefined => {
+  if (part.kind !== 'html') {
+    return undefined
+  }
+  if (part.language === 'html' || /<html|<!doctype/i.test(part.code)) {
+    return buildCanvasSrcDoc(part.code, part.id)
+  }
+  return part.html
+}

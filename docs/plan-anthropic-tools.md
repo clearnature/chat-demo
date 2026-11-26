@@ -314,3 +314,13 @@ Google CSE 正常）。当限额触发、搜索结果为空或质量下降时，
   顶部模型选择器点击后**直接定位**到该分组；缺少 Key 时也自动打开此分组。
 - 输入框常驻 5 个建议芯片（3D / 双摆物理 / Python 绘图 / 公式画布 / 深度研究），
   点击**直接发送**预设 prompt（生成中则保留文本，不打断当前回复）。
+
+### 9.3 画布注入 bug 修复（2026-11-26）
+
+- 现象：画布控制台报 `Uncaught SyntaxError: Invalid or unexpected token`。
+- 根因：`buildCanvasSrcDoc` 用 `String.replace(/<\/head>/, head)` 注入底座，而 head 里
+  KaTeX 分隔符包含 `$'` / `$$`，被 `replace` 当作**替换模式**（`$'` = 匹配点之后的整段文档），
+  导致 `<body>` 内容被插进 `<head>` 的 `onload` 属性 → iframe 内 JS 语法错误。
+- 修复：改用函数替换 `replace(re, () => head)`；同时渲染时按原始 `code` 重新构建 srcdoc，
+  历史会话里的旧坏文档打开画布即自动修复。
+- 验证：旧会话产物重建后 srcdoc 13.7KB、`</head>` 在 `<body>` 前、控制台 0 报错。

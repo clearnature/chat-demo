@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTranslate } from '../../i18n/index.js'
 import type { SandboxPart } from '../../services/chat/types.js'
+import { resolveArtifactHtml } from '../../services/sandbox/canvasDocument.js'
 import { openArtifactCanvas, useArtifactCanvas } from '../artifact/canvasState.js'
 import styles from './SandboxCard.module.css'
 
@@ -16,6 +17,7 @@ export const SandboxCard = ({ part }: { part: SandboxPart }) => {
   const [issueCount, setIssueCount] = useState(0)
   const autoOpened = useRef(false)
   const seenIssues = useRef<Set<string>>(new Set())
+  const html = resolveArtifactHtml(part)
   const running = part.status === 'running'
   const failed = part.status === 'failed'
 
@@ -39,11 +41,11 @@ export const SandboxCard = ({ part }: { part: SandboxPart }) => {
 
   // HTML 产物生成完成后自动打开右侧画布
   useEffect(() => {
-    if (part.kind === 'html' && part.status === 'done' && part.html && !autoOpened.current) {
+    if (part.kind === 'html' && part.status === 'done' && html && !autoOpened.current) {
       autoOpened.current = true
       openArtifactCanvas(part)
     }
-  }, [part])
+  }, [part, html])
 
   return (
     <div className={styles.card}>
@@ -60,7 +62,7 @@ export const SandboxCard = ({ part }: { part: SandboxPart }) => {
         <button type="button" className={styles.button} onClick={() => setShowCode((value) => !value)}>
           {t('sandboxCode')}
         </button>
-        {part.kind === 'html' && part.html && !running ? (
+        {part.kind === 'html' && html && !running ? (
           <button type="button" className={styles.button} onClick={() => setNonce((value) => value + 1)}>
             {t('sandboxRerun')}
           </button>
@@ -83,13 +85,13 @@ export const SandboxCard = ({ part }: { part: SandboxPart }) => {
         </>
       ) : null}
 
-      {part.kind === 'html' && part.html ? (
+      {part.kind === 'html' && html ? (
         <iframe
           key={nonce}
           className={styles.frame}
           title={part.title ?? 'sandbox preview'}
           sandbox="allow-scripts"
-          srcDoc={part.html}
+          srcDoc={html}
         />
       ) : null}
       {part.kind === 'html' && part.error ? <pre className={styles.error}>{part.error}</pre> : null}
