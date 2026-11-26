@@ -334,3 +334,12 @@ Google CSE 正常）。当限额触发、搜索结果为空或质量下降时，
 - 「重新运行」语义：HTML 产物 = 重载 iframe（增量 `nonce`）；Python 产物 = 真正重新执行
   Pyodide（`rerunPythonSandbox`），并把 running/done/failed、stdout、图片写回消息里的 sandbox 块。
 - 验证：Python 产物画布重跑后图片正常、状态 done；关闭→悬浮按钮→重开成功。
+
+### 9.5 画布入口与“只说不画”兜底（2026-11-26）
+
+- 系统提示强化：用户要求渲染/画布/Canvas/Python 演示时，**必须调用** `render_frontend_artifact`
+  或 `python_sandbox`，禁止只用文字声称“已渲染”。
+- 右上角「🎨 打开画布」在没有产物时打开**可编辑画布**：HTML/JS 与 Python 两种模式，
+  内置示例（Canvas 粒子 + KaTeX/mhchem），点「运行」直接出结果；产物视图支持新建/刷新/下载/全屏。
+- 兜底：回复文本声称已渲染但本轮没有 sandbox 块时，消息下方显示「未检测到画布产物」+「打开画布」按钮。
+- 验证：用户原 prompt 现在会真正产出画布卡片并自动打开；空白画布运行生成 5.3KB srcdoc（含 katex/mhchem）。

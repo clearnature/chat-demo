@@ -33,6 +33,7 @@ import { Markdown } from '../markdown/Markdown.js'
 import { SiteThumbnails } from '../search/SiteLogo.js'
 import { SandboxCard } from './SandboxCard.js'
 import { toggleSearchPanel, useSearchPanel } from '../search/searchPanelState.js'
+import { useArtifactCanvas } from '../artifact/canvasState.js'
 import styles from './ReplyArea.module.css'
 import './thinking.markdown.css'
 
@@ -65,7 +66,7 @@ export const ReplyArea = memo(function ReplyArea({
   streaming: boolean
   hasResponse: boolean
 }) {
-  useTranslate()
+  const t = useTranslate()
   const [open, setOpen] = useState(true)
   const titleActive = streaming && !hasResponse
   useTicker(titleActive, 1000)
@@ -76,6 +77,11 @@ export const ReplyArea = memo(function ReplyArea({
   const thinking = message.thinking ?? view.steps.some((step) => step.type === 'thinking')
   const title = thinking ? getAreaTitle(view, streaming, Date.now(), hasResponse) : null
   const stopped = !streaming && !hasResponse
+  // 兜底：模型只输出文字声称“已渲染”，但本轮没有画布产物 → 给出画布入口
+  const hasSandbox = view.steps.some((step) => step.type === 'sandbox')
+  const claimText = view.answer?.text ?? ''
+  const missingCanvas =
+    !streaming && !hasSandbox && /(已渲染|已生成页面|渲染出来|画布|Canvas)/.test(claimText)
   return (
     <div className={styles.area}>
       {title ? (
@@ -99,6 +105,18 @@ export const ReplyArea = memo(function ReplyArea({
               isLast={index === view.steps.length - 1}
             />
           ))}
+        </div>
+      ) : null}
+      {missingCanvas ? (
+        <div className={styles.canvasHint}>
+          <span>{t('canvasHintText')}</span>
+          <button
+            type="button"
+            className={styles.canvasHintButton}
+            onClick={() => useArtifactCanvas.getState().openBlank()}
+          >
+            {t('topOpenCanvas')}
+          </button>
         </div>
       ) : null}
     </div>

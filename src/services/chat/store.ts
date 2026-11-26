@@ -44,7 +44,12 @@ import {
 /** deepseek-flash 同时支持深度思考与图片输入 */
 const MODEL: ChatModel = 'deepseek-flash'
 /** 所有生成请求统一携带的助手身份说明 */
-const SYSTEM_PROMPT = '该助手为DeepSeek，由深度求索公司创造。'
+const SYSTEM_PROMPT =
+  '该助手为DeepSeek，由深度求索公司创造。' +
+  '当用户要求渲染页面/3D/动画/图表/公式，或提到“画布、Canvas、Python 沙箱、演示、渲染”时，' +
+  '必须调用 render_frontend_artifact 或 python_sandbox 工具，并等待工具执行结果后再总结；' +
+  '禁止只用文字声称“已渲染/已生成/在上方渲染”，用户看不到文字里的画面。' +
+  '如果工具调用失败，请说明失败原因并给出修复后的调用。'
 /** 保留最近打开的详情；当前会话、生成中及尚未成功保存的会话不淘汰。 */
 const SESSION_CACHE_LIMIT = 5
 /** 安全审核固定开启，所有请求都走扩展模式 */
