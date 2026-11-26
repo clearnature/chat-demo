@@ -163,3 +163,20 @@ systemctl enable --now php-fpm
 - nginx 在 apex 与 www 的 443 server 块中提供同源接口 `location = /api/ip`，返回 `{"ip":"$remote_addr"}`（不缓存）。
 - 前端组件 `src/components/base/VisitorIp.tsx` 在页面底部显示「当前访问 IP / Your IP」；请求失败时整条页脚自动隐藏，不影响页面。
 - 部署后可用 `curl -s https://aecci.net/api/ip` 自检。
+
+## 本地搜索与网页抓取（OpenCode 模式）
+
+chat-demo 的 OpenCode 模式使用客户端工具，不依赖 DeepSeek 服务端工具：
+
+| 工具 | 同源端点 | 服务 |
+| --- | --- | --- |
+| `web_search` | `/searx/search?q=…&format=json` | SearXNG（`127.0.0.1:8888`，systemd `searxng.service`） |
+| `web_fetch` | `/read-api/?url=…` | chat-reader（`127.0.0.1:8889`，Go，SSRF 防护，HTML→文本） |
+
+- 浏览器 → nginx 同源反代（`/searx/`、`/read-api/`），无 CORS、无额外 Key。
+- `web_fetch` 移植自 Reasonix `dev/wails` 的 `internal/tool/builtin/webfetch.go`（15s 超时、1 MiB 上限、
+  拨号级 SSRF 拦截、重定向复检）；服务源码见 `deploy/chat-reader/main.go`。
+- SearXNG 搜索无结果时会自动换用引擎子集重试一次；仍失败则返回工具错误，模型可改用
+  `web_fetch` 直接抓取已知 URL（不消耗搜索引擎配额）。
+- 部署：`deploy/chat-reader/` 下 `go build` 后放到 `/opt/chat-reader/`，systemd 单元与
+  nginx `location /read-api/` 见同目录/任务文档。

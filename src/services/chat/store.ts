@@ -2,7 +2,6 @@ import { create } from 'zustand'
 import { getAbortReason, throwIfAborted } from '../../utils/abort.js'
 import { createId } from '../../utils/id.js'
 import { ApiError, streamMessage } from '../api/client.js'
-import { streamOpenCodeMessage } from '../api/opencode.js'
 import type { ChatModel, CreateMessageRequest } from '../api/types.js'
 import { extractFileIds, getFileErrorCode, isRetryableApiError } from '../api/errors.js'
 import {
@@ -23,11 +22,7 @@ import {
   prepareDraftMessage,
 } from './drafts.js'
 import { createLatestReminder } from './latestReminder.js'
-import {
-  applyOpenCodeChunk,
-  createOpenCodeStreamState,
-  toOpenCodeMessages,
-} from './opencode.js'
+import { runOpenCodeReply } from './opencodeLoop.js'
 import {
   applyEvent,
   canContinueReply,
@@ -1008,28 +1003,31 @@ const streamReply = async (sessionId: string, initial: AssistantMessage, request
 
   try {
     if ((initial.provider ?? 'deepseek') === 'opencode') {
-      // OpenCode Go（OpenAI Chat Completions 兼容）：不经过附件补传与 Messages API，
-      // 历史只回传正文，思考来自 reasoning_content，标题用首条提问兜底。
+      // OpenCode Go（Anthropic Messages 兼容）：与 DeepSeek 共用 SSE 解析，
+      // 搜索/抓取由客户端工具（本地 SearXNG + 服务端 reader）完成，历史只回传正文。
       const settings = useSettings.getState()
-      const state = createOpenCodeStreamState()
       try {
-        const events = streamOpenCodeMessage({
-          apiKey: settings.opencodeApiKey ?? '',
-          sessionId,
-          model: initial.model ?? settings.opencodeModel,
-          messages: toOpenCodeMessages(request.history, request.question, SYSTEM_PROMPT),
-          reasoningEffort: initial.thinking ? 'high' : 'low',
+        reply = await runOpenCodeReply({
+          initial: reply,
+          history: request.history,
+          question: request.question,
+          settings: {
+            apiKey: settings.opencodeApiKey ?? '',
+            model: initial.model ?? settings.opencodeModel,
+            sessionId,
+            search: initial.search ?? false,
+            system: SYSTEM_PROMPT,
+          },
           signal: controller.signal,
+          onUpdate: (next) => {
+            reply = next
+            if (document.visibilityState === 'hidden') {
+              flush()
+            } else {
+              frame ||= requestAnimationFrame(flush)
+            }
+          },
         })
-        for await (const chunk of events) {
-          reply = applyOpenCodeChunk(reply, chunk, Date.now(), state)
-          if (document.visibilityState === 'hidden') {
-            flush()
-          } else {
-            frame ||= requestAnimationFrame(flush)
-          }
-        }
-        reply = settleReply(reply, 'done', Date.now())
       } catch (error) {
         if (controller.signal.aborted) {
           reply = settleReply(reply, 'stopped', Date.now())

@@ -53,7 +53,6 @@ const Input = ({ sessionId }: { sessionId: string | null }) => {
   const importingHistory = useChatStore((state) => state.importingHistory)
   const isMobile = useIsMobile()
   const search = useSettings((state) => state.search)
-  const provider = useSettings((state) => state.provider)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const togglesRef = useRef<HTMLDivElement>(null)
@@ -223,17 +222,12 @@ const Input = ({ sessionId }: { sessionId: string | null }) => {
               <span className={styles.toggleLabel}>{t('thinkingSwitch')}</span>
             </button>
           </Tooltip>
-          <Tooltip
-            content={
-              provider === 'opencode' ? t('opencodeSearchUnavailable') : t('deactivatedSearchTooltip')
-            }
-          >
+          <Tooltip content={t('deactivatedSearchTooltip')}>
             <button
               type="button"
               className={clsx(styles.toggle, search && styles.selected)}
               aria-label={t('search')}
               aria-pressed={search}
-              disabled={provider === 'opencode'}
               onClick={() => setSearch(!search)}
             >
               <IconGlobeLanguageOutline14 />

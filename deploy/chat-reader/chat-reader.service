@@ -1,0 +1,22 @@
+[Unit]
+Description=chat-demo web_fetch reader (SSRF-guarded, HTML to text)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=chat-reader
+Group=chat-reader
+ExecStart=/opt/chat-reader/chat-reader
+Restart=always
+RestartSec=2
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/tmp
+MemoryMax=256M
+TasksMax=64
+
+[Install]
+WantedBy=multi-user.target

@@ -127,6 +127,46 @@ export type ServerToolBlock =
 /** 用于识别客户端工具调用的内容块类型 */
 export type ToolUseBlock = { type: 'tool_use'; id: string; name: string; input: unknown }
 
+// ---------- 请求：客户端工具（Anthropic tools 参数） ----------
+
+/** 工具输入的 JSON Schema（只用到对象 + 简单属性） */
+export type ClientToolSchema = {
+  type: 'object'
+  properties: Record<string, { type: string; description?: string }>
+  required?: string[]
+}
+
+/** 客户端工具定义，对应 Anthropic `tools` 数组元素 */
+export type ClientToolDef = {
+  name: string
+  description: string
+  input_schema: ClientToolSchema
+}
+
+/** tool_result 内容块：把工具执行结果回传给模型 */
+export type ToolResultParam = {
+  type: 'tool_result'
+  tool_use_id: string
+  content: string
+}
+
+/** 客户端工具调用块（input 在流式 input_json_delta 中补齐） */
+export type ClientToolUseBlock = {
+  type: 'tool_use'
+  id: string
+  name: string
+  input: Record<string, unknown>
+}
+
+/** OpenCode Anthropic 路径的消息内容块 */
+export type AnthropicContentBlock = TextBlockParam | ClientToolUseBlock | ToolResultParam
+
+/** OpenCode Anthropic 路径的消息 */
+export type AnthropicMessage = {
+  role: 'user' | 'assistant'
+  content: string | AnthropicContentBlock[]
+}
+
 // ---------- 请求 ----------
 
 export type TextBlockParam = { type: 'text'; text: string }
