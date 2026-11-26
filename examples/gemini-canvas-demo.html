@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Gemini Workspace - Canvas & Python Sandbox</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css" />
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/mhchem.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"
+  onload="renderMathInElement(document.body,{delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}],throwOnError:false});"></script>
+<script src="https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js"></script>
+<style>
+  :root {
+    --bg-main:#131314; --bg-sidebar:#1e1f20; --bg-surface:#1e1f20; --bg-surface-hover:#282a2c;
+    --text-primary:#e3e3e3; --text-secondary:#c4c7c5; --text-muted:#8e918f;
+    --border-color:#333537; --accent-blue:#a8c7fa;
+    --gemini-gradient:linear-gradient(74deg,#4285f4 0,#9b72cb 9%,#d96570 20%,#d96570 24%,#9b72cb 35%,#4285f4 44%,#9b72cb 50%,#d96570 56%,#131314 75%,#131314 100%);
+  }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  html, body { height:100%; }
+  body { font-family:'Google Sans',-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    background:var(--bg-main); color:var(--text-primary); display:flex; overflow:hidden; }
+
+  /* 左侧边栏 */
+  .sidebar { width:260px; background:var(--bg-sidebar); display:flex; flex-direction:column;
+    padding:12px; transition:width .25s cubic-bezier(.2,0,0,1); border-right:1px solid var(--border-color); flex-shrink:0; }
+  .sidebar.collapsed { width:68px; }
+  .sidebar-header { display:flex; align-items:center; gap:12px; padding:8px; }
+  .icon-btn { background:transparent; border:none; color:var(--text-secondary); width:40px; height:40px;
+    border-radius:50%; cursor:pointer; display:flex; align-items:center; justify-content:center; font-size:18px; }
+  .icon-btn:hover { background:var(--bg-surface-hover); color:#fff; }
+  .new-chat-btn { margin:12px 4px; padding:10px 16px; border-radius:24px; background:#282a2c;
+    color:var(--text-secondary); border:none; display:flex; align-items:center; gap:12px; cursor:pointer;
+    font-size:14px; font-weight:500; white-space:nowrap; overflow:hidden; }
+  .new-chat-btn:hover { background:#37393b; color:#fff; }
+  .history-list { flex:1; overflow-y:auto; margin-top:8px; }
+  .history-item { padding:10px 14px; border-radius:20px; font-size:13px; color:var(--text-secondary);
+    cursor:pointer; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-bottom:4px; }
+  .history-item:hover, .history-item.active { background:var(--bg-surface-hover); color:#fff; }
+  .sidebar.collapsed .hide-on-collapse { display:none; }
+
+  /* 主工作区 */
+  .workspace { flex:1; display:flex; height:100vh; overflow:hidden; min-width:0; }
+  .chat-panel { flex:1; display:flex; flex-direction:column; min-width:380px; }
+  .topbar { height:60px; padding:0 20px; display:flex; align-items:center; justify-content:space-between; flex-shrink:0; }
+  .model-selector { display:flex; align-items:center; gap:8px; font-size:17px; font-weight:500;
+    color:var(--text-secondary); padding:6px 12px; border-radius:8px; }
+  .model-badge { font-size:11px; padding:2px 8px; border-radius:12px;
+    background:rgba(168,199,250,.15); color:var(--accent-blue); }
+  .tool-pill { background:#282a2c; border:1px solid var(--border-color); color:var(--text-secondary);
+    padding:5px 12px; border-radius:16px; font-size:12px; cursor:pointer; display:flex; align-items:center;
+    gap:6px; transition:.2s; user-select:none; }
+  .tool-pill.active { background:rgba(168,199,250,.16); border-color:var(--accent-blue); color:var(--accent-blue); }
+
+  /* 消息区 */
+  .chat-scroll { flex:1; overflow-y:auto; padding:20px 16px 40px; display:flex; flex-direction:column; align-items:center; }
+  .chat-container { width:100%; max-width:780px; display:flex; flex-direction:column; gap:26px; }
+  .hero-title { font-size:42px; font-weight:600; line-height:1.18; background:var(--gemini-gradient);
+    -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; }
+  .hero-subtitle { font-size:32px; font-weight:500; color:#444746; margin-top:4px; }
+  .demo-chips { display:grid; grid-template-columns:repeat(auto-fit,minmax(175px,1fr)); gap:12px; margin-top:26px; }
+  .demo-card { background:var(--bg-surface); padding:16px; border-radius:16px; cursor:pointer;
+    border:1px solid transparent; transition:.2s; display:flex; flex-direction:column; justify-content:space-between; min-height:120px; }
+  .demo-card:hover { background:var(--bg-surface-hover); border-color:var(--border-color); transform:translateY(-2px); }
+  .demo-card-title { font-size:14px; font-weight:500; line-height:1.4; }
+  .demo-card-tag { font-size:12px; color:var(--accent-blue); margin-top:12px; }
+  .msg-user { align-self:flex-end; background:#282a2c; padding:12px 20px; border-radius:24px 24px 4px 24px;
+    max-width:80%; line-height:1.6; font-size:15px; }
+  .msg-ai { display:flex; gap:16px; width:100%; line-height:1.7; font-size:15px; }
+  .ai-avatar { width:32px; height:32px; border-radius:50%; flex-shrink:0; background:linear-gradient(135deg,#4285f4,#d96570);
+    display:flex; align-items:center; justify-content:center; font-size:16px; }
+  .ai-content { flex:1; min-width:0; }
+  .ai-content p { margin-bottom:10px; }
+  .ai-content code { background:#282a2c; padding:1px 6px; border-radius:4px; font-size:13px; }
+
+  /* 输入区 */
+  .input-area { padding:12px 16px 24px; display:flex; flex-direction:column; align-items:center; flex-shrink:0; }
+  .prompt-box { width:100%; max-width:780px; background:var(--bg-surface); border-radius:28px;
+    padding:12px 18px; border:1px solid var(--border-color); display:flex; flex-direction:column; gap:8px; }
+  .prompt-box:focus-within { border-color:#5f6368; }
+  .prompt-textarea { width:100%; background:transparent; border:none; color:var(--text-primary);
+    font-size:15px; line-height:1.5; resize:none; outline:none; max-height:160px; font-family:inherit; }
+  .prompt-toolbar { display:flex; align-items:center; justify-content:space-between; }
+  .tool-toggles { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .send-btn { background:var(--accent-blue); color:#062e6f; border:none; width:36px; height:36px;
+    border-radius:50%; cursor:pointer; font-weight:bold; font-size:16px; }
+  .send-btn:hover { opacity:.9; }
+
+  /* Canvas 抽屉 */
+  .canvas-drawer { width:0; background:#18191a; border-left:1px solid var(--border-color);
+    display:flex; flex-direction:column; transition:width .3s cubic-bezier(.2,0,0,1); overflow:hidden; flex-shrink:0; }
+  .canvas-drawer.open { width:54%; }
+  .canvas-header { height:56px; padding:0 16px; background:var(--bg-sidebar); border-bottom:1px solid var(--border-color);
+    display:flex; align-items:center; justify-content:space-between; gap:8px; }
+  .canvas-tabs { display:flex; gap:4px; background:#131314; padding:4px; border-radius:20px; }
+  .canvas-tab { padding:6px 12px; border-radius:16px; font-size:12px; color:var(--text-secondary);
+    background:transparent; border:none; cursor:pointer; font-weight:500; white-space:nowrap; }
+  .canvas-tab.active { background:#282a2c; color:#fff; }
+  .canvas-body { flex:1; position:relative; overflow:hidden; display:flex; flex-direction:column; min-height:0; }
+  .canvas-view { width:100%; height:100%; display:none; flex-direction:column; min-height:0; }
+  .canvas-view.active { display:flex; }
+  #sandbox-iframe { width:100%; height:100%; border:none; background:#fff; }
+  #code-editor { width:100%; height:100%; background:#131314; color:#a8c7fa; border:none; padding:16px;
+    font-family:ui-monospace,Menlo,monospace; font-size:13px; resize:none; outline:none; }
+  .console-box { padding:16px; font-family:ui-monospace,Menlo,monospace; font-size:13px;
+    color:#e3e3e3; overflow-y:auto; flex:1; background:#0d0e0f; white-space:pre-wrap; }
+  .py-plot-img { display:block; max-width:100%; border-radius:8px; margin-top:12px; border:1px solid #333; }
+  @media (max-width:900px) {
+    .sidebar { width:68px; }
+    .sidebar .hide-on-collapse { display:none; }
+    .canvas-drawer.open { position:fixed; inset:0; width:100%; z-index:100; }
+    .chat-panel { min-width:0; }
+  }
+</style>
+</head>
+<body>
+
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-header">
+    <button class="icon-btn" onclick="document.getElementById('sidebar').classList.toggle('collapsed')">☰</button>
+    <span class="hide-on-collapse" style="font-weight:600;font-size:15px;">Gemini Workspace</span>
+  </div>
+  <button class="new-chat-btn" onclick="resetChat()"><span>＋</span><span class="hide-on-collapse">发起新对话</span></button>
+  <div class="history-list hide-on-collapse">
+    <div class="history-item" onclick="runDemo('3d')">🧊 Three.js 3D 晶体与分子交互</div>
+    <div class="history-item" onclick="runDemo('physics')">⚛️ 物理双摆混沌动画 + 微分方程</div>
+    <div class="history-item" onclick="runDemo('python')">🐍 Pyodide 科学计算与 Matplotlib</div>
+    <div class="history-item" onclick="runDemo('chem')">🧪 化学反应平衡与公式排版</div>
+  </div>
+</aside>
+
+<main class="workspace">
+  <section class="chat-panel">
+    <header class="topbar">
+      <div class="model-selector"><span>✨ DeepSeek × Gemini Canvas</span><span class="model-badge">Sandbox</span></div>
+      <button class="tool-pill" onclick="toggleCanvas()">🎨 切换画布 (Canvas)</button>
+    </header>
+
+    <div class="chat-scroll" id="chat-scroll">
+      <div class="chat-container" id="chat-container">
+        <div id="hero-box">
+          <div class="hero-title">你好，开发者</div>
+          <div class="hero-subtitle">今天想构建或演算什么？</div>
+          <div class="demo-chips">
+            <div class="demo-card" onclick="runDemo('3d')">
+              <div class="demo-card-title">渲染可拖拽的 3D 旋转二十面体与动态粒子场</div>
+              <div class="demo-card-tag">🧊 Three.js WebGL 3D</div>
+            </div>
+            <div class="demo-card" onclick="runDemo('physics')">
+              <div class="demo-card-title">推导拉格朗日方程并实时运行混沌双摆物理仿真</div>
+              <div class="demo-card-tag">⚛️ 物理公式 + JS 动画</div>
+            </div>
+            <div class="demo-card" onclick="runDemo('python')">
+              <div class="demo-card-title">在浏览器运行 Python 绘制阻尼振荡曲线</div>
+              <div class="demo-card-tag">🐍 Pyodide + Matplotlib</div>
+            </div>
+            <div class="demo-card" onclick="runDemo('chem')">
+              <div class="demo-card-title">渲染化学方程式、麦克斯韦方程组与周期表</div>
+              <div class="demo-card-tag">🧪 KaTeX + mhchem</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <footer class="input-area">
+      <div class="prompt-box">
+        <textarea id="user-input" class="prompt-textarea" rows="2"
+          placeholder="输入问题，或贴入 HTML/JS/Python 代码并在右侧画布运行..."></textarea>
+        <div class="prompt-toolbar">
+          <div class="tool-toggles">
+            <div class="tool-pill active" id="pill-canvas" onclick="this.classList.toggle('active')">🎨 Canvas 画布</div>
+            <div class="tool-pill active" id="pill-py" onclick="this.classList.toggle('active')">🐍 Python 沙盒</div>
+            <div class="tool-pill" id="pill-search" onclick="this.classList.toggle('active')">🔍 Deep Research</div>
+          </div>
+          <button class="send-btn" onclick="handleSend()">➤</button>
+        </div>
+      </div>
+    </footer>
+  </section>
+
+  <aside class="canvas-drawer" id="canvas-drawer">
+    <div class="canvas-header">
+      <span id="canvas-title" style="font-size:14px;font-weight:600;">交互式画布预览</span>
+      <div class="canvas-tabs">
+        <button class="canvas-tab active" data-tab="preview" onclick="switchTab('preview',this)">👁️ 预览</button>
+        <button class="canvas-tab" data-tab="code" onclick="switchTab('code',this)">💻 代码</button>
+        <button class="canvas-tab" data-tab="console" onclick="switchTab('console',this)">📟 Python / 控制台</button>
+      </div>
+      <div style="display:flex;gap:6px;">
+        <button class="tool-pill" onclick="applyEditorCode()">▶ 重新运行</button>
+        <button class="icon-btn" onclick="toggleCanvas()" style="width:32px;height:32px;">✕</button>
+      </div>
+    </div>
+    <div class="canvas-body">
+      <div class="canvas-view active" id="view-preview"><iframe id="sandbox-iframe" sandbox="allow-scripts allow-pointer-lock allow-forms allow-popups"></iframe></div>
+      <div class="canvas-view" id="view-code"><textarea id="code-editor" spellcheck="false"></textarea></div>
+      <div class="canvas-view" id="view-console"><div class="console-box" id="console-output">正在后台预热 Pyodide (WebAssembly Python)...</div></div>
+    </div>
+  </aside>
+</main>
+
+<script>
+/* =====================================================================
+ * Gemini 复刻版（单文件）
+ * 注意：本文件用 localStorage 无依赖，直接 file:// 或静态服务器打开即可。
+ * 与 chat-demo 生产版本共用同样的画布/沙箱协议：
+ *   - 画布 iframe 注入 KaTeX+mhchem+importmap(three)+错误回传
+ *   - Python 用 Pyodide WebAssembly，matplotlib 自动转 base64 图片
+ * =================================================================== */
+
+// ---------- 1) 画布底座 ----------
+const PYTHON_MACROS = {
+  '\\dd': '\\mathrm{d}', '\\dv': '\\frac{\\mathrm{d}#1}{\\mathrm{d}#2}',
+  '\\pdv': '\\frac{\\partial #1}{\\partial #2}', '\\abs': '\\left|#1\\right|',
+  '\\bra': '\\left\\langle #1\\right|', '\\ket': '\\left|#1\\right\\rangle',
+  '\\comm': '\\left[#1,#2\\right]', '\\laplacian': '\\nabla^2', '\\div': '\\nabla\\cdot'
+};
+
+function buildCanvasSrcDoc(userCode) {
+  const errorBridge = `<script>
+    window.__dsPost = (level, message) => {
+      try { parent.postMessage({ type: 'DS_CANVAS_LOG', level, message: String(message) }, '*'); } catch (e) {}
+    };
+    window.addEventListener('error', (e) => window.__dsPost('error', e.message));
+    window.addEventListener('unhandledrejection', (e) => window.__dsPost('error', 'Unhandled rejection: ' + e.reason));
+    const origError = console.error;
+    console.error = function () {
+      const text = Array.prototype.map.call(arguments, (v) => (typeof v === 'string' ? v : (() => { try { return JSON.stringify(v); } catch (e) { return String(v); } })())).join(' ');
+      window.__dsPost('console', text);
+      origError.apply(console, arguments);
+    };
+  <\/script>`;
+  const head = `
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css" />
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"><\/script>
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/mhchem.min.js"><\/script>
+    <script>window.__KATEX_MACROS__ = ${JSON.stringify(PYTHON_MACROS)};<\/script>
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"
+      onload="renderMathInElement(document.body,{delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false},{left:'\\\\(',right:'\\\\)',display:false},{left:'\\\\[',right:'\\\\]',display:true}],macros:window.__KATEX_MACROS__||{},throwOnError:false});"><\/script>
+    <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"}}<\/script>
+    <style>html,body{margin:0;padding:0;width:100%;height:100%;font-family:system-ui,sans-serif;background:#0b1220;color:#e2e8f0;overflow:auto}</style>
+    ${errorBridge}`;
+  if (!/<html/i.test(userCode)) {
+    return `<!DOCTYPE html><html><head>${head}</head><body>${userCode}</body></html>`;
+  }
+  if (/<\/head>/i.test(userCode)) return userCode.replace(/<\/head>/i, `${head}\n</head>`);
+  return userCode;
+}
+
+// ---------- 2) 画布 UI 控制 ----------
+const drawer = document.getElementById('canvas-drawer');
+const iframe = document.getElementById('sandbox-iframe');
+const editor = document.getElementById('code-editor');
+const consoleOut = document.getElementById('console-output');
+const canvasTitle = document.getElementById('canvas-title');
+let currentMode = 'html';
+
+function setTab(tab) {
+  document.querySelectorAll('.canvas-view').forEach((view) => view.classList.remove('active'));
+  document.getElementById('view-' + tab).classList.add('active');
+  document.querySelectorAll('.canvas-tab').forEach((btn) => btn.classList.toggle('active', btn.dataset.tab === tab));
+}
+
+function switchTab(tab, btn) {
+  setTab(tab);
+  if (btn) {
+    document.querySelectorAll('.canvas-tab').forEach((item) => item.classList.remove('active'));
+    btn.classList.add('active');
+  }
+}
+
+function toggleCanvas() {
+  drawer.classList.toggle('open');
+  if (drawer.classList.contains('open') && !document.getElementById('view-preview').classList.contains('active')) {
+    setTab('preview');
+  }
+}
+
+function openHtmlCanvas(title, htmlCode) {
+  currentMode = 'html';
+  canvasTitle.textContent = title;
+  editor.value = htmlCode;
+  iframe.srcdoc = buildCanvasSrcDoc(htmlCode);
+  drawer.classList.add('open');
+  setTab('preview');
+}
+
+function openPythonCanvas(title, pythonCode) {
+  currentMode = 'python';
+  canvasTitle.textContent = title;
+  editor.value = pythonCode;
+  drawer.classList.add('open');
+  setTab('console');
+  void runPython(pythonCode);
+}
+
+function applyEditorCode() {
+  if (currentMode === 'python') {
+    canvasTitle.textContent = canvasTitle.textContent || 'Python 沙盒';
+    void runPython(editor.value);
+    setTab('console');
+  } else {
+    iframe.srcdoc = buildCanvasSrcDoc(editor.value);
+    setTab('preview');
+  }
+}
+
+// 接收 iframe 报错
+window.addEventListener('message', (event) => {
+  const data = event.data;
+  if (!data || data.type !== 'DS_CANVAS_LOG') return;
+  const line = '[' + data.level + '] ' + data.message;
+  if (consoleOut.textContent.trim().startsWith('正在后台预热')) consoleOut.textContent = '';
+  consoleOut.textContent += (consoleOut.textContent ? '\n' : '') + line;
+});
+
+// ---------- 3) Pyodide ----------
+let pyodidePromise = null;
+function getPyodide() {
+  if (!pyodidePromise) {
+    pyodidePromise = (async () => {
+      try {
+        const py = await loadPyodide({ indexURL: 'https://cdn.jsdelivr.net/pyodide/v0.26.4/full/' });
+        try { consoleOut.textContent = '✅ Pyodide Python 3.12 沙盒已就绪（numpy / matplotlib 可用）'; } catch (e) {}
+        return py;
+      } catch (error) {
+        consoleOut.textContent = '❌ Pyodide 加载失败: ' + error;
+        throw error;
+      }
+    })();
+  }
+  return pyodidePromise;
+}
+window.addEventListener('load', () => { void getPyodide(); });
+
+async function runPython(code) {
+  consoleOut.textContent = '⏳ 正在加载依赖并执行 Python 代码...\n';
+  try {
+    const py = await getPyodide();
+    const logs = [];
+    const errors = [];
+    py.setStdout({ batched: (s) => logs.push(s) });
+    py.setStderr({ batched: (s) => errors.push(s) });
+    await py.loadPackagesFromImports(code);
+    try { await py.runPythonAsync("import matplotlib; matplotlib.use('Agg')"); } catch (e) {}
+    const result = await py.runPythonAsync(code);
+    let images = [];
+    try {
+      const raw = await py.runPythonAsync(`
+import base64, io, json
+_images = []
+try:
+    import matplotlib.pyplot as plt
+    for _num in plt.get_fignums():
+        _fig = plt.figure(_num)
+        _buffer = io.BytesIO()
+        _fig.savefig(_buffer, format='png', bbox_inches='tight', dpi=140)
+        _images.append(base64.b64encode(_buffer.getvalue()).decode())
+    plt.close('all')
+except Exception:
+    pass
+json.dumps(_images)
+`);
+      images = JSON.parse(String(raw));
+    } catch (e) {}
+    consoleOut.textContent = logs.join('\n') + (errors.length ? '\n[stderr]\n' + errors.join('\n') : '') + (result !== undefined ? '\n[返回值] ' + result : '');
+    images.forEach((b64) => {
+      const img = document.createElement('img');
+      img.src = 'data:image/png;base64,' + b64;
+      img.className = 'py-plot-img';
+      consoleOut.appendChild(img);
+    });
+  } catch (error) {
+    consoleOut.textContent = '❌ Python 运行错误:\n' + error;
+  }
+}
+
+// ---------- 4) 聊天交互 ----------
+const chatContainer = document.getElementById('chat-container');
+const input = document.getElementById('user-input');
+
+function appendUser(text) {
+  const div = document.createElement('div');
+  div.className = 'msg-user';
+  div.textContent = text;
+  chatContainer.appendChild(div);
+  document.getElementById('hero-box')?.remove();
+  document.getElementById('chat-scroll').scrollTop = 1e9;
+}
+
+function appendAi(html) {
+  const row = document.createElement('div');
+  row.className = 'msg-ai';
+  row.innerHTML = '<div class="ai-avatar">✦</div><div class="ai-content">' + html + '</div>';
+  chatContainer.appendChild(row);
+  document.getElementById('chat-scroll').scrollTop = 1e9;
+}
+
+function handleSend() {
+  const text = input.value.trim();
+  if (!text) return;
+  appendUser(text);
+  input.value = '';
+  const pythonPill = document.getElementById('pill-py').classList.contains('active');
+  const canvasPill = document.getElementById('pill-canvas').classList.contains('active');
+  const pythonBlock = text.match(/```python\s*([\s\S]*?)```/i);
+  const htmlBlock = text.match(/```(?:html|javascript|js)\s*([\s\S]*?)```/i);
+  if (pythonBlock && pythonPill) {
+    appendAi('<p>好的，我在右侧 Python 沙盒中运行这段代码。</p>');
+    openPythonCanvas('Python 沙盒', pythonBlock[1]);
+  } else if (htmlBlock && canvasPill) {
+    appendAi('<p>收到，已把 HTML/JS 渲染到右侧画布。</p>');
+    openHtmlCanvas('前端画布', htmlBlock[1]);
+  } else {
+    appendAi('<p>这是离线演示界面。你可以：① 点击上方快捷卡片；② 用 <code>```python</code> 代码块触发 Python 沙盒；③ 用 <code>```html</code> 代码块触发画布渲染。</p>');
+  }
+}
+
+document.getElementById('user-input').addEventListener('keydown', (event) => {
+  if (event.key === 'Enter' && !event.shiftKey) {
+    event.preventDefault();
+    handleSend();
+  }
+});
+
+function resetChat() {
+  chatContainer.innerHTML = `
+    <div id="hero-box">
+      <div class="hero-title">你好，开发者</div>
+      <div class="hero-subtitle">今天想构建或演算什么？</div>
+      <div class="demo-chips">
+        <div class="demo-card" onclick="runDemo('3d')"><div class="demo-card-title">渲染可拖拽的 3D 旋转二十面体与动态粒子场</div><div class="demo-card-tag">🧊 Three.js WebGL 3D</div></div>
+        <div class="demo-card" onclick="runDemo('physics')"><div class="demo-card-title">推导拉格朗日方程并实时运行混沌双摆物理仿真</div><div class="demo-card-tag">⚛️ 物理公式 + JS 动画</div></div>
+        <div class="demo-card" onclick="runDemo('python')"><div class="demo-card-title">在浏览器运行 Python 绘制阻尼振荡曲线</div><div class="demo-card-tag">🐍 Pyodide + Matplotlib</div></div>
+        <div class="demo-card" onclick="runDemo('chem')"><div class="demo-card-title">渲染化学方程式、麦克斯韦方程组与周期表</div><div class="demo-card-tag">🧪 KaTeX + mhchem</div></div>
+      </div>
+    </div>`;
+  drawer.classList.remove('open');
+}
+
+// ---------- 5) 四个内置演示 ----------
+const DEMO_3D = `
+<div style="height:100%;position:relative">
+  <div style="position:absolute;left:16px;top:14px;z-index:2">
+    <div style="font-size:18px;font-weight:600">可拖拽的 3D 二十面体</div>
+    <div style="font-size:12px;color:#93a4c3;margin-top:4px">Three.js · 鼠标拖拽旋转 / 滚轮缩放 · 粒子场</div>
+  </div>
+  <div id="stage" style="width:100%;height:100%"></div>
+</div>
+<script type="module">
+import * as THREE from 'three';
+const stage = document.getElementById('stage');
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(50, stage.clientWidth / stage.clientHeight, 0.1, 100);
+camera.position.set(0, 0, 6);
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(stage.clientWidth, stage.clientHeight);
+stage.appendChild(renderer.domElement);
+const geo = new THREE.IcosahedronGeometry(1.5, 0);
+const mat = new THREE.MeshPhysicalMaterial({ color: 0x6d8cff, metalness: 0.35, roughness: 0.25, clearcoat: 1, wireframe: false });
+const mesh = new THREE.Mesh(geo, mat);
+scene.add(mesh);
+const wire = new THREE.LineSegments(new THREE.EdgesGeometry(geo), new THREE.LineBasicMaterial({ color: 0xa8c7fa, transparent: true, opacity: 0.5 }));
+scene.add(wire);
+scene.add(new THREE.AmbientLight(0xffffff, 0.55));
+const key = new THREE.DirectionalLight(0xffffff, 1.4); key.position.set(4, 6, 5); scene.add(key);
+const rim = new THREE.PointLight(0xd96570, 30, 30); rim.position.set(-4, -2, 3); scene.add(rim);
+const count = 400; const positions = new Float32Array(count * 3);
+for (let i = 0; i < count; i++) { positions[i*3] = (Math.random()-0.5)*12; positions[i*3+1] = (Math.random()-0.5)*12; positions[i*3+2] = (Math.random()-0.5)*12; }
+const pGeo = new THREE.BufferGeometry(); pGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+scene.add(new THREE.Points(pGeo, new THREE.PointsMaterial({ color: 0x9b72cb, size: 0.035, transparent: true, opacity: 0.8 })));
+let drag = false, lastX = 0, lastY = 0, vx = 0.004, vy = 0.002, dist = 6;
+renderer.domElement.addEventListener('pointerdown', (e) => { drag = true; lastX = e.clientX; lastY = e.clientY; renderer.domElement.setPointerCapture(e.pointerId); });
+addEventListener('pointerup', () => { drag = false; });
+addEventListener('pointermove', (e) => { if (!drag) return; vx = (e.clientX - lastX) * 0.01; vy = (e.clientY - lastY) * 0.01; lastX = e.clientX; lastY = e.clientY; });
+renderer.domElement.addEventListener('wheel', (e) => { e.preventDefault(); dist = Math.min(11, Math.max(3.2, dist + e.deltaY * 0.003)); }, { passive: false });
+let t = 0;
+function animate() {
+  requestAnimationFrame(animate);
+  t += 0.01;
+  mesh.rotation.x += vy; mesh.rotation.y += vx;
+  wire.rotation.copy(mesh.rotation);
+  vx *= 0.96; vy *= 0.96;
+  mesh.rotation.y += 0.002;
+  mesh.position.y = Math.sin(t) * 0.12;
+  wire.position.copy(mesh.position);
+  camera.position.z += (dist - camera.position.z) * 0.08;
+  renderer.render(scene, camera);
+}
+animate();
+new ResizeObserver(() => { camera.aspect = stage.clientWidth / stage.clientHeight; camera.updateProjectionMatrix(); renderer.setSize(stage.clientWidth, stage.clientHeight); }).observe(stage);
+<\/script>`;
+
+const DEMO_PHYSICS = `
+<div style="padding:18px 22px;height:100%;display:flex;flex-direction:column;gap:10px">
+  <div style="font-size:18px;font-weight:600">混沌双摆 · 拉格朗日方程</div>
+  <div style="font-size:13px;color:#93a4c3">$\\ddot{\\theta}_1$、$\\ddot{\\theta}_2$ 由 RK4 实时积分 · 拖拽改变初始角度</div>
+  <canvas id="pend" style="flex:1;width:100%;min-height:260px;border-radius:12px;background:#0f172a;cursor:grab"></canvas>
+  <div style="font-size:12px;color:#6b7c99">双击画布重置；两条摆臂颜色不同，展示初值敏感（混沌）。</div>
+</div>
+<script>
+const canvas = document.getElementById('pend');
+const ctx = canvas.getContext('2d');
+let W = 0, H = 0;
+function resize() { const r = canvas.getBoundingClientRect(); W = canvas.width = r.width * devicePixelRatio; H = canvas.height = r.height * devicePixelRatio; }
+new ResizeObserver(resize).observe(canvas); resize();
+let s = { a1: Math.PI / 2, a2: Math.PI / 2 + 0.001, w1: 0, w2: 0 };
+const L1 = 1, L2 = 1, m1 = 1, m2 = 1, g = 9.81;
+function accel(st) {
+  const { a1, a2, w1, w2 } = st, d = a2 - a1, den = 2 * m1 + m2 - m2 * Math.cos(2 * d);
+  return {
+    a1: (-g * (2 * m1 + m2) * Math.sin(a1) - m2 * g * Math.sin(a1 - 2 * a2) - 2 * Math.sin(d) * m2 * (w2 * w2 * L2 + w1 * w1 * L1 * Math.cos(d))) / (L1 * den),
+    a2: (2 * Math.sin(d) * (w1 * w1 * L1 * (m1 + m2) + g * (m1 + m2) * Math.cos(a1) + w2 * w2 * L2 * m2 * Math.cos(d))) / (L2 * den)
+  };
+}
+function step(dt) {
+  const k1 = accel(s);
+  const s2 = { a1: s.a1 + k1.a1*dt/2, a2: s.a2 + k1.a2*dt/2, w1: s.w1 + k1.a1*dt/2, w2: s.w2 + k1.a2*dt/2 };
+  const k2 = accel(s2);
+  const s3 = { a1: s.a1 + k2.a1*dt/2, a2: s.a2 + k2.a2*dt/2, w1: s.w1 + k2.a1*dt/2, w2: s.w2 + k2.a2*dt/2 };
+  const k3 = accel(s3);
+  const s4 = { a1: s.a1 + k3.a1*dt, a2: s.a2 + k3.a2*dt, w1: s.w1 + k3.a1*dt, w2: s.w2 + k3.a2*dt };
+  const k4 = accel(s4);
+  s = { a1: s.a1 + dt*(k1.a1 + 2*k2.a1 + 2*k3.a1 + k4.a1)/6, a2: s.a2 + dt*(k1.a2 + 2*k2.a2 + 2*k3.a2 + k4.a2)/6,
+        w1: s.w1 + dt*(k1.a1 + 2*k2.a1 + 2*k3.a1 + k4.a1)/6, w2: s.w2 + dt*(k1.a2 + 2*k2.a2 + 2*k3.a2 + k4.a2)/6 };
+}
+function frame() {
+  step(0.012); ctx.clearRect(0, 0, W, H);
+  const cx = W / 2, cy = H * 0.42, scale = Math.min(W, H) * 0.22;
+  const x1 = cx + Math.sin(s.a1) * scale, y1 = cy + Math.cos(s.a1) * scale;
+  const x2 = x1 + Math.sin(s.a2) * scale, y2 = y1 + Math.cos(s.a2) * scale;
+  ctx.lineWidth = 3 * devicePixelRatio; ctx.strokeStyle = '#a8c7fa';
+  ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(x1, y1); ctx.stroke();
+  ctx.strokeStyle = '#d96570';
+  ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+  for (const [x, y, c] of [[cx, cy, '#e3e3e3'], [x1, y1, '#a8c7fa'], [x2, y2, '#d96570']]) {
+    ctx.last = true; ctx.fillStyle = c; ctx.beginPath(); ctx.arc(x, y, 6 * devicePixelRatio, 0, Math.PI * 2); ctx.fill();
+  }
+  requestAnimationFrame(frame);
+}
+frame();
+canvas.addEventListener('dblclick', () => { s = { a1: Math.PI/2, a2: Math.PI/2 + 0.001, w1: 0, w2: 0 }; });
+<\/script>`;
+
+const DEMO_PYTHON = `import math
+import matplotlib.pyplot as plt
+
+t = [i * 0.05 for i in range(200)]
+y = [math.exp(-0.08 * x) * math.cos(4 * x) for x in t]
+plt.figure(figsize=(7, 3.2))
+plt.plot(t, y, color='#4b7bec')
+plt.axhline(0, color='#999', linewidth=0.6)
+plt.title('Damped oscillation: exp(-0.08t) * cos(4t)')
+plt.xlabel('time')
+plt.ylabel('amplitude')
+peak = max(y)
+print('samples:', len(t))
+print('peak amplitude:', round(peak, 4))
+plt.tight_layout()`;
+
+const DEMO_CHEM = `
+<div style="height:100%;overflow:auto;padding:20px 24px">
+  <div style="font-size:20px;font-weight:600;margin-bottom:6px">数理化公式与元素周期表</div>
+  <div style="font-size:13px;color:#93a4c3;margin-bottom:16px">KaTeX + mhchem（化学）· 任意 \\ce 与 Local 宏</div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px">
+    <div style="background:#141d2b;border:1px solid #283648;border-radius:12px;padding:14px">
+      <div style="color:#a8c7fa;font-size:12px;margin-bottom:8px">质能方程</div>
+      <div style="font-size:20px">$$E = mc^2$$</div>
+    </div>
+    <div style="background:#141d2b;border:1px solid #283648;border-radius:12px;padding:14px">
+      <div style="color:#a8c7fa;font-size:12px;margin-bottom:8px">麦克斯韦方程组</div>
+      <div>$$\\nabla \\cdot \\vec{E} = \\frac{\\rho}{\\varepsilon_0},\\quad \\nabla \\cdot \\vec{B} = 0$$</div>
+      <div>$$\\nabla \\times \\vec{E} = -\\frac{\\partial \\vec{B}}{\\partial t},\\quad \\nabla \\times \\vec{B} = \\mu_0 \\vec{J} + \\mu_0 \\varepsilon_0 \\frac{\\partial \\vec{E}}{\\partial t}$$</div>
+    </div>
+    <div style="background:#141d2b;border:1px solid #283648;border-radius:12px;padding:14px">
+      <div style="color:#a8c7fa;font-size:12px;margin-bottom:8px">化学反应</div>
+      <div style="font-size:18px">$$\\ce{2H2 + O2 -> 2H2O}$$</div>
+      <div style="font-size:14px;margin-top:8px">$$\\ce{CH4 + 2O2 -> CO2 + 2H2O}$$</div>
+    </div>
+    <div style="background:#141d2b;border:1px solid #283648;border-radius:12px;padding:14px">
+      <div style="color:#a8c7fa;font-size:12px;margin-bottom:8px">physics 宏</div>
+      <div style="font-size:18px">$$\\dv{f}{x},\\quad \\pdv{\\phi}{t},\\quad \\bra{\\psi}\\ket{\\phi}$$</div>
+    </div>
+  </div>
+  <div id="periodic" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(44px,1fr));gap:4px;margin-top:18px"></div>
+</div>
+<script>
+const symbols = ['H','He','Li','Be','B','C','N','O','F','Ne','Na','Mg','Al','Si','P','S','Cl','Ar','K','Ca','Sc','Ti','V','Cr','Mn','Fe','Co','Ni','Cu','Zn','Ga','Ge','As','Se','Br','Kr'];
+const palette = ['#4285f4','#9b72cb','#d96570','#34a853','#f9ab00'];
+const box = document.getElementById('periodic');
+symbols.forEach((sym, i) => {
+  const el = document.createElement('div');
+  el.textContent = sym;
+  el.style.cssText = 'padding:7px 0;text-align:center;border-radius:8px;font-size:12px;font-weight:600;background:' + palette[i % palette.length] + '22;border:1px solid ' + palette[i % palette.length] + '55;color:' + palette[i % palette.length];
+  box.appendChild(el);
+});
+<\/script>`;
+
+function runDemo(kind) {
+  const map = {
+    '3d': ['Three.js 3D 晶体', DEMO_3D, '3D 交互演示：带粒子场的二十面体，可拖拽/缩放。'],
+    physics: ['物理双摆混沌', DEMO_PHYSICS, '双摆混沌仿真：RK4 积分，双击重置。'],
+    python: ['Python 科学绘图', DEMO_PYTHON, '正在右侧 Python 沙盒中运行 Matplotlib 阻尼振荡曲线。'],
+    chem: ['数理化公式画布', DEMO_CHEM, '公式/化学式/物理宏演示（KaTeX + mhchem）。'],
+  };
+  const [title, payload, reply] = map[kind];
+  appendUser('演示：' + title);
+  appendAi('<p>' + reply + '</p>');
+  if (kind === 'python') openPythonCanvas(title, payload);
+  else openHtmlCanvas(title, payload);
+}
+</script>
+</body>
+</html>

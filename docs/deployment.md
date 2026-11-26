@@ -193,3 +193,14 @@ chat-demo 提供两个纯前端沙箱工具，不需要服务器执行代码、�
 - Pyodide 资源通过同源 `/pyodide/` 反代加载（配置见 `deploy/nginx-pyodide.conf`），版本 v0.26.4。
 - Worker 中没有 DOM：matplotlib 强制使用 `Agg` 后端（否则 wasm 后端 `import document` 会失败）。
 - iframe 仅有 `allow-scripts`（无同源/Cookie 权限）；首屏 Pyodide 约 10~20MB，浏览器缓存后复用。
+
+## 独立演示页：Gemini 风格单文件
+
+`examples/gemini-canvas-demo.html` 是零依赖单文件演示（可直接双击打开或静态托管）：
+
+- 左聊天 + 右 Canvas 抽屉（预览/代码/控制台），欢迎页 4 个演示卡片
+- 3D：Three.js 二十面体 + 粒子场（拖拽/滚轮）
+- 物理：双摆混沌（RK4）
+- Python：Pyodide + matplotlib 自动出图
+- 公式：KaTeX + mhchem（`\ce`）+ physics 宏
+- 画布 iframe 注入错误回传（控制台）
