@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslate } from '../../i18n/index.js'
 import type { SandboxPart } from '../../services/chat/types.js'
+import { openArtifactCanvas, useArtifactCanvas } from '../artifact/canvasState.js'
 import styles from './SandboxCard.module.css'
 
 /**
@@ -12,8 +13,37 @@ export const SandboxCard = ({ part }: { part: SandboxPart }) => {
   const t = useTranslate()
   const [showCode, setShowCode] = useState(false)
   const [nonce, setNonce] = useState(0)
+  const [issueCount, setIssueCount] = useState(0)
+  const autoOpened = useRef(false)
+  const seenIssues = useRef<Set<string>>(new Set())
   const running = part.status === 'running'
   const failed = part.status === 'failed'
+
+  // iframe 报错/console 回传：按产物 id 收集，供画布「控制台」与修复使用
+  useEffect(() => {
+    const onMessage = (event: MessageEvent) => {
+      const data = event.data as { source?: string; artifactId?: string; level?: string; message?: string }
+      if (data?.source !== 'ds-canvas' || data.artifactId !== part.id) {
+        return
+      }
+      const line = data.message ?? ''
+      useArtifactCanvas.getState().pushLog(part.id, data.level ?? 'console', line)
+      if (line && !seenIssues.current.has(line)) {
+        seenIssues.current.add(line)
+        setIssueCount(seenIssues.current.size)
+      }
+    }
+    window.addEventListener('message', onMessage)
+    return () => window.removeEventListener('message', onMessage)
+  }, [part.id])
+
+  // HTML 产物生成完成后自动打开右侧画布
+  useEffect(() => {
+    if (part.kind === 'html' && part.status === 'done' && part.html && !autoOpened.current) {
+      autoOpened.current = true
+      openArtifactCanvas(part)
+    }
+  }, [part])
 
   return (
     <div className={styles.card}>
@@ -24,6 +54,9 @@ export const SandboxCard = ({ part }: { part: SandboxPart }) => {
         {part.title ? <span className={styles.title}>{part.title}</span> : null}
         {running ? <span className={styles.status}>{t('sandboxRunning')}</span> : null}
         {failed ? <span className={styles.failed}>{t('sandboxFailed')}</span> : null}
+        <button type="button" className={styles.button} onClick={() => openArtifactCanvas(part)}>
+          {issueCount > 0 ? `${t('canvasOpen')} (${issueCount})` : t('canvasOpen')}
+        </button>
         <button type="button" className={styles.button} onClick={() => setShowCode((value) => !value)}>
           {t('sandboxCode')}
         </button>

@@ -1,5 +1,6 @@
 import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import { ensureKatex, type Katex } from '../../services/markdown/katex.js'
+import { PHYSICS_MACROS } from '../../services/markdown/physicsMacros.js'
 
 /** renderToString 外层包裹的标签，组件自己渲染外层，这里切掉 */
 const KATEX_WRAPPER = {
@@ -35,7 +36,7 @@ const useMathHtml = (input: string, isInline: boolean): MathHtmlResult => {
     try {
       const [prefix, suffix] = KATEX_WRAPPER[isInline ? 'inline' : 'display']
       const html = katex
-        .renderToString(input, { throwOnError: true, strict: false, displayMode: !isInline })
+        .renderToString(input, { throwOnError: true, strict: false, displayMode: !isInline, macros: PHYSICS_MACROS })
         .slice(prefix.length, -suffix.length)
       const result = { html, renderMode: 'katex' } as const
       previousResultRef.current = result

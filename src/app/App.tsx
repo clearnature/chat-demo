@@ -10,6 +10,7 @@ import {
   useChatStore,
 } from '../services/chat/store.js'
 import { SearchPanel } from '../components/search/SearchPanel.js'
+import { ArtifactCanvas } from '../components/artifact/ArtifactCanvas.js'
 import { closeSearchPanel } from '../components/search/searchPanelState.js'
 import { SessionView } from '../components/session/SessionView.js'
 import { MobileHeader } from '../components/session/MobileHeader.js'
@@ -133,6 +134,7 @@ export const App = () => {
           <VisitorIp />
         </main>
         <SearchPanel />
+      <ArtifactCanvas />
       </div>
       <SettingsDialog />
       <Toast />

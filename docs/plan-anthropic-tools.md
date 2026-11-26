@@ -281,3 +281,21 @@ Google CSE 正常）。当限额触发、搜索结果为空或质量下降时，
 - 首次 Python 调用从同源 `/pyodide/` 加载（约 10~20MB，可缓存）；执行默认超时 120s，Worker 超时终止。
 - 无服务端代码执行：Python 在浏览器 WASM、前端产物在无同源权限的 iframe 中运行。
 - 验证：Three.js 旋转立方体 iframe（srcdoc 含 three，8.6KB）；Python `print(2+2)`；matplotlib `y=sin(x)` 产出 1 张 PNG 并渲染。
+
+---
+
+## 9. 画布（Canvas）升级（2026-11-26）
+
+对齐 Claude Artifacts / Gemini Canvas 的关键能力：
+
+| 能力 | 实现 |
+| --- | --- |
+| 右侧抽屉式画布 | `ArtifactCanvas`（`role=dialog`，桌面 52vw，移动端全宽），含预览/代码/控制台三标签、全屏、下载、重新运行 |
+| 3D / 交互 | srcdoc 注入 **import map**（three + addons、chart.js、matter-js）；iframe 允许 `allow-scripts allow-pointer-lock allow-forms allow-popups` |
+| 数理化公式 | 画布注入 KaTeX + mhchem + auto-render（`$…$`/`$$…$$`/`\(…\)`/`\[…\]`），并内置 physics 常用宏（`\dd \dv \pdv \bra \ket \comm \laplacian …`）；聊天的 Markdown 公式渲染器同步注入这些宏 |
+| Python 科学绘图 | Pyodide Worker + `matplotlib.use('Agg')`，执行后扫描所有 figure 输出 PNG base64（无需模型写 `plt.show()`） |
+| 报错闭环 | 画布 srcdoc 注入 error bridge：`window.onerror` / `unhandledrejection` / `console.error` → `postMessage({source:'ds-canvas'})` → 画布「控制台」去重展示；「让 AI 修复」把错误+代码写回输入框自动发送 |
+| 消息内卡片 | artifact/python 在气泡内渲染为沙箱卡片（标题/类型/打开画布/代码），HTML 产物生成后自动打开画布 |
+
+- 验证：Three.js + KaTeX 产物 → 画布自动打开、注入 34KB srcdoc（含 katex/importmap/error bridge）、三标签可用；产物自身 JS 语法错误被控制台捕获并显示「让 AI 修复」。
+- 说明：画布 iframe 仍保持 `allow-scripts` 系（无 `allow-same-origin`），无法读取父页面存储；CDN 依赖浏览器网络。

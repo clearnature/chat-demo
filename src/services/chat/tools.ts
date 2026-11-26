@@ -1,6 +1,7 @@
 import { transform } from 'sucrase'
 import { API_ORIGIN } from '../api/client.js'
 import { runPythonSandbox } from '../sandbox/pythonSandbox.js'
+import { buildCanvasSrcDoc, buildModuleSrcDoc } from '../sandbox/canvasDocument.js'
 import type {
   ClientToolDef,
   ClientToolUseBlock,
@@ -716,12 +717,6 @@ export const renderArtifactTool: ClientToolDef = {
   },
 }
 
-/** 包装 JS/TS 代码为可运行的 HTML 文档 */
-const wrapModule = (js: string): string => {
-  const safe = js.replace(/<\/script>/gi, '<\\/script>')
-  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>html,body{margin:0;height:100%;font-family:system-ui,sans-serif}</style></head><body><script type="module">${safe}</script></body></html>`
-}
-
 const executePythonSandbox = async (call: ToolCall): Promise<ToolOutcome> => {
   const code = text(call.input.code)
   if (!code.trim()) {
@@ -800,11 +795,13 @@ const executeRenderArtifact = async (call: ToolCall): Promise<ToolOutcome> => {
   try {
     let html = raw
     if (language === 'typescript') {
-      html = wrapModule(transform(raw, { transforms: ['typescript'] }).code)
+      html = buildModuleSrcDoc(transform(raw, { transforms: ['typescript'] }).code, call.id)
     } else if (language === 'javascript') {
-      html = wrapModule(raw)
+      html = buildModuleSrcDoc(raw, call.id)
     } else if (!/<html|<!doctype|<body/i.test(raw)) {
-      html = wrapModule(raw)
+      html = buildModuleSrcDoc(raw, call.id)
+    } else {
+      html = buildCanvasSrcDoc(raw, call.id)
     }
     return {
       block: {
