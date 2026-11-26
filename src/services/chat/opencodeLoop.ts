@@ -35,6 +35,8 @@ import type { AssistantMessage, Message, UserMessage } from './types.js'
 const MAX_TOOL_ROUNDS = 3
 /** 模型元数据不可用时的输出上限兜底（不主动限制；元数据可用时按模型最大值） */
 const FALLBACK_MAX_OUTPUT_TOKENS = 131072
+/** 在浏览器沙箱执行、不需要内部 server_tool_use 块的工具 */
+const SANDBOX_TOOLS = new Set(['python_sandbox', 'render_frontend_artifact'])
 
 export type OpenCodeLoopSettings = {
   apiKey: string
@@ -141,7 +143,43 @@ export const runOpenCodeReply = async (request: OpenCodeLoopRequest): Promise<As
           input: parseArgs(current.args),
         }
         calls.push(call)
-        reply = { ...reply, blocks: [...reply.blocks, toServerToolUseBlock(call)] }
+        if (SANDBOX_TOOLS.has(call.name)) {
+          const input = call.input
+          const code =
+            call.name === 'python_sandbox'
+              ? String(input.code ?? '')
+              : String(input.html_js_code ?? '')
+          const language =
+            call.name === 'render_frontend_artifact'
+              ? (() => {
+                  const value = String(input.language ?? '').toLowerCase()
+                  return value === 'typescript' || value === 'ts'
+                    ? 'typescript'
+                    : value === 'javascript' || value === 'js'
+                      ? 'javascript'
+                      : 'html'
+                })()
+              : undefined
+          reply = {
+            ...reply,
+            blocks: [
+              ...reply.blocks,
+              {
+                type: 'sandbox',
+                id: call.id,
+                kind: call.name === 'python_sandbox' ? 'python' : 'html',
+                ...(call.name === 'render_frontend_artifact'
+                  ? { title: String(input.title ?? '') || 'Frontend artifact', language }
+                  : {}),
+                code,
+                status: 'running',
+                createdAt: Date.now(),
+              },
+            ],
+          }
+        } else {
+          reply = { ...reply, blocks: [...reply.blocks, toServerToolUseBlock(call)] }
+        }
         return true
       }
       return false
@@ -190,7 +228,17 @@ export const runOpenCodeReply = async (request: OpenCodeLoopRequest): Promise<As
     for (const call of calls) {
       const outcome = await executeToolCall(call, signal)
       outcomes.push(outcome)
-      reply = { ...reply, blocks: [...reply.blocks, outcome.block] }
+      const existing = reply.blocks.some(
+        (block) => block.type === 'sandbox' && block.id === call.id
+      )
+      reply = {
+        ...reply,
+        blocks: existing
+          ? reply.blocks.map((block) =>
+              block.type === 'sandbox' && block.id === call.id ? outcome.block : block
+            )
+          : [...reply.blocks, outcome.block],
+      }
       onUpdate(reply)
       if (signal.aborted) {
         return settleReply(reply, 'stopped', Date.now())

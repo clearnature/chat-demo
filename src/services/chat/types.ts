@@ -64,8 +64,28 @@ export type TextPart = {
   isTemplate?: boolean
 }
 
+/** 浏览器沙箱产物：Python（Pyodide）执行结果或 HTML/JS/TS 渲染产物 */
+export type SandboxPart = {
+  type: 'sandbox'
+  id: string
+  kind: 'python' | 'html'
+  title?: string
+  /** 用户/模型提供的源码 */
+  code: string
+  /** html 产物（iframe srcdoc）；python 为空 */
+  html?: string
+  language?: 'html' | 'javascript' | 'typescript'
+  /** Python stdout/stderr/返回值合并后的文本 */
+  output?: string
+  /** matplotlib 图表（PNG data URL） */
+  images?: string[]
+  status: 'running' | 'done' | 'failed'
+  error?: string
+  createdAt: number
+}
+
 /** 服务端工具调用与结果块按协议原样保存；历史请求只回传 read_link 调用与结果 */
-export type ReplyBlock = ThinkingPart | TextPart | ServerToolBlock
+export type ReplyBlock = ThinkingPart | TextPart | ServerToolBlock | SandboxPart
 
 /**
  * pending：已发出请求，还没收到事件；streaming：正在接收；

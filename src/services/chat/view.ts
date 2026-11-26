@@ -7,7 +7,7 @@ import type {
   WebSearchResult,
   WebSearchToolResultBlock,
 } from '../api/types.js'
-import type { AssistantMessage, ThinkingPart } from './types.js'
+import type { AssistantMessage, SandboxPart, ThinkingPart } from './types.js'
 
 /**
  * 由回复的内容块推导界面需要的结构：思考与工具步骤的时间线、带引用角标的正文、可引用的来源列表。
@@ -66,10 +66,20 @@ export type ReadLinkStep = { type: 'read_link'; links: PageItem[] }
 
 export type ThinkingStep = { type: 'thinking'; key: string; blocks: ThinkingPart[] }
 
+/** 浏览器沙箱步骤（Python / HTML 产物） */
+export type SandboxStep = { type: 'sandbox'; key: string; part: SandboxPart }
+
 /** 工具调用前输出的说明文字 */
 export type PreambleStep = { type: 'text'; key: string; markdown: string }
 
-export type Step = SearchStep | OpenStep | FindStep | ReadLinkStep | ThinkingStep | PreambleStep
+export type Step =
+  | SearchStep
+  | OpenStep
+  | FindStep
+  | ReadLinkStep
+  | ThinkingStep
+  | PreambleStep
+  | SandboxStep
 
 export type ReplyView = {
   steps: Step[]
@@ -235,6 +245,11 @@ export const buildReplyView = (reply: AssistantMessage, streaming: boolean): Rep
   reply.blocks.forEach((block, index) => {
     // 模板统一由 describeReply 展示，不能混入模型正文或工具步骤前的说明文字。
     if (block.type === 'text' && block.isTemplate) {
+      return
+    }
+    if (block.type === 'sandbox') {
+      flushPreamble()
+      steps.push({ type: 'sandbox', key: `sandbox-${index}`, part: block })
       return
     }
     if (block.type !== 'thinking') {

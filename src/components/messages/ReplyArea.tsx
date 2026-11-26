@@ -31,6 +31,7 @@ import {
 import { Tooltip } from '../base/Tooltip.js'
 import { Markdown } from '../markdown/Markdown.js'
 import { SiteThumbnails } from '../search/SiteLogo.js'
+import { SandboxCard } from './SandboxCard.js'
 import { toggleSearchPanel, useSearchPanel } from '../search/searchPanelState.js'
 import styles from './ReplyArea.module.css'
 import './thinking.markdown.css'
@@ -105,7 +106,7 @@ export const ReplyArea = memo(function ReplyArea({
 })
 
 const stepKey = (step: Step, index: number) =>
-  step.type === 'thinking' || step.type === 'text' || step.type === 'search'
+  step.type === 'thinking' || step.type === 'text' || step.type === 'search' || step.type === 'sandbox'
     ? step.key
     : `${step.type}-${index}`
 
@@ -158,6 +159,12 @@ const StepItem = ({
       return <FindRow step={step} isLast={isLast} />
     case 'read_link':
       return <ReadLinkRow step={step} isLast={isLast} />
+    case 'sandbox':
+      return (
+        <ContentItem isLast={isLast} active={step.part.status === 'running'}>
+          <SandboxCard part={step.part} />
+        </ContentItem>
+      )
     default:
       return null
   }

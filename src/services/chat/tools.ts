@@ -1,4 +1,6 @@
+import { transform } from 'sucrase'
 import { API_ORIGIN } from '../api/client.js'
+import { runPythonSandbox } from '../sandbox/pythonSandbox.js'
 import type {
   ClientToolDef,
   ClientToolUseBlock,
@@ -72,7 +74,9 @@ export const webFetchTool: ClientToolDef = {
 
 /** 当前启用的工具定义；search 关闭时只提供 web_fetch（与 DeepSeek 始终声明 read_url 对齐） */
 export const clientTools = (search: boolean): ClientToolDef[] =>
-  search ? [webSearchTool, webFetchTool, retrieveInfoTool] : [webFetchTool]
+  search
+    ? [webSearchTool, webFetchTool, retrieveInfoTool, pythonSandboxTool, renderArtifactTool]
+    : [webFetchTool, pythonSandboxTool, renderArtifactTool]
 
 const text = (value: unknown): string => (typeof value === 'string' ? value : '')
 
@@ -287,6 +291,12 @@ const executeFetch = async (call: ToolCall, signal: AbortSignal): Promise<ToolOu
 
 /** 执行一次工具调用，返回内部结果块与回传给模型的 tool_result 文本 */
 export const executeToolCall = async (call: ToolCall, signal: AbortSignal): Promise<ToolOutcome> => {
+  if (call.name === 'python_sandbox') {
+    return executePythonSandbox(call)
+  }
+  if (call.name === 'render_frontend_artifact') {
+    return executeRenderArtifact(call)
+  }
   if (call.name === 'retrieve_info') {
     return executeRetrieve(call, signal)
   }
@@ -665,3 +675,169 @@ export const hasRetrieveCredentials = (): boolean =>
   retrieveConfig.officialApiKey.trim().length > 0 || retrieveConfig.opencodeApiKey.trim().length > 0
 
 export const retrieveInfoAvailable = (): boolean => hasRetrieveCredentials()
+
+// ---------------- 浏览器沙箱工具（Python 执行 / 前端产物渲染） ----------------
+
+export const pythonSandboxTool: ClientToolDef = {
+  name: 'python_sandbox',
+  description:
+    'Execute Python 3 code in the user browser sandbox (Pyodide/WebAssembly) and return stdout/stderr/return value. numpy/pandas/matplotlib are supported and matplotlib figures are captured as images. Use it for calculations, data analysis, plotting, or algorithm verification. No server-side execution.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      code: { type: 'string', description: 'Valid Python 3 source code to execute' },
+      timeout_seconds: {
+        type: 'integer',
+        description: 'Optional execution timeout in seconds (default 120, max 300)',
+      },
+    },
+    required: ['code'],
+  },
+}
+
+export const renderArtifactTool: ClientToolDef = {
+  name: 'render_frontend_artifact',
+  description:
+    'Render HTML/CSS/JavaScript/TypeScript in a sandboxed iframe inside the chat UI. Use it for interactive charts, UI demos, canvas/WebGL and 3D visualizations (e.g. Three.js via a CDN import). Provide a complete HTML document for language=html, or JS/TS module code for language=javascript/typescript (it runs inside <script type="module">). The iframe has allow-scripts only (no same-origin access).',
+  input_schema: {
+    type: 'object',
+    properties: {
+      html_js_code: {
+        type: 'string',
+        description: 'Complete HTML, or JS/TS module code when language is javascript/typescript',
+      },
+      language: {
+        type: 'string',
+        description: 'html (default), javascript, or typescript',
+      },
+      title: { type: 'string', description: 'Optional title shown on the preview card' },
+    },
+    required: ['html_js_code'],
+  },
+}
+
+/** 包装 JS/TS 代码为可运行的 HTML 文档 */
+const wrapModule = (js: string): string => {
+  const safe = js.replace(/<\/script>/gi, '<\\/script>')
+  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>html,body{margin:0;height:100%;font-family:system-ui,sans-serif}</style></head><body><script type="module">${safe}</script></body></html>`
+}
+
+const executePythonSandbox = async (call: ToolCall): Promise<ToolOutcome> => {
+  const code = text(call.input.code)
+  if (!code.trim()) {
+    return {
+      block: {
+        type: 'sandbox',
+        id: call.id,
+        kind: 'python',
+        code,
+        output: '',
+        images: [],
+        status: 'failed',
+        error: 'python_sandbox: code is required',
+        createdAt: Date.now(),
+      },
+      content: JSON.stringify({ error: 'python_sandbox: code is required' }),
+      ok: false,
+    }
+  }
+  const rawTimeout = Number(call.input.timeout_seconds)
+  const timeoutMs = Number.isFinite(rawTimeout)
+    ? Math.min(Math.max(Math.floor(rawTimeout), 10), 300) * 1000
+    : 120000
+  const result = await runPythonSandbox(code, timeoutMs)
+  const stdout = result.stdout ?? ''
+  const stderr = result.stderr ?? ''
+  const returnValue = result.result ?? ''
+  const parts = [
+    stdout.trim(),
+    stderr.trim() ? `[stderr]\n${stderr.trim()}` : '',
+    returnValue.trim() ? `[Return] ${returnValue.trim()}` : '',
+  ].filter(Boolean)
+  const output = parts.join('\n')
+  return {
+    block: {
+      type: 'sandbox',
+      id: call.id,
+      kind: 'python',
+      code,
+      output,
+      images: result.images,
+      status: result.ok ? 'done' : 'failed',
+      ...(result.ok ? {} : { error: result.error ?? 'Python execution failed' }),
+      createdAt: Date.now(),
+    },
+    content: clip(output || result.error || '(Python 执行完成，无输出)'),
+    ok: result.ok,
+  }
+}
+
+const executeRenderArtifact = async (call: ToolCall): Promise<ToolOutcome> => {
+  const raw = text(call.input.html_js_code)
+  if (!raw.trim()) {
+    return {
+      block: {
+        type: 'sandbox',
+        id: call.id,
+        kind: 'html',
+        code: raw,
+        status: 'failed',
+        error: 'render_frontend_artifact: html_js_code is required',
+        createdAt: Date.now(),
+      },
+      content: JSON.stringify({ error: 'render_frontend_artifact: html_js_code is required' }),
+      ok: false,
+    }
+  }
+  const requested = text(call.input.language).toLowerCase()
+  const language: 'html' | 'javascript' | 'typescript' =
+    requested === 'typescript' || requested === 'ts'
+      ? 'typescript'
+      : requested === 'javascript' || requested === 'js'
+        ? 'javascript'
+        : 'html'
+  const title = text(call.input.title) || 'Frontend artifact'
+  try {
+    let html = raw
+    if (language === 'typescript') {
+      html = wrapModule(transform(raw, { transforms: ['typescript'] }).code)
+    } else if (language === 'javascript') {
+      html = wrapModule(raw)
+    } else if (!/<html|<!doctype|<body/i.test(raw)) {
+      html = wrapModule(raw)
+    }
+    return {
+      block: {
+        type: 'sandbox',
+        id: call.id,
+        kind: 'html',
+        title,
+        code: raw,
+        html,
+        language,
+        status: 'done',
+        createdAt: Date.now(),
+      },
+      content: JSON.stringify({ rendered: true, title, language }),
+      ok: true,
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    return {
+      block: {
+        type: 'sandbox',
+        id: call.id,
+        kind: 'html',
+        title,
+        code: raw,
+        language,
+        status: 'failed',
+        error: message,
+        createdAt: Date.now(),
+      },
+      content: JSON.stringify({ error: `artifact render failed: ${message}` }),
+      ok: false,
+    }
+  }
+}
+

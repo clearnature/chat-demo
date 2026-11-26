@@ -180,3 +180,16 @@ chat-demo 的 OpenCode 模式使用客户端工具，不依赖 DeepSeek 服务�
   `web_fetch` 直接抓取已知 URL（不消耗搜索引擎配额）。
 - 部署：`deploy/chat-reader/` 下 `go build` 后放到 `/opt/chat-reader/`，systemd 单元与
   nginx `location /read-api/` 见同目录/任务文档。
+
+## 浏览器沙箱（Python / 前端产物）
+
+chat-demo 提供两个纯前端沙箱工具，不需要服务器执行代码、无容器/后端注入风险：
+
+| 工具 | 实现 | 说明 |
+| --- | --- | --- |
+| `python_sandbox` | Pyodide（WebAssembly Python）跑在 **Web Worker** | stdout/stderr/返回值；numpy/pandas/matplotlib；matplotlib 图表以 PNG 回传展示 |
+| `render_frontend_artifact` | `<iframe sandbox="allow-scripts">`（srcdoc） | HTML/JS/TS（TS 用 sucrase 在浏览器内转译）；支持 Canvas/WebGL/Three.js CDN 演示 |
+
+- Pyodide 资源通过同源 `/pyodide/` 反代加载（配置见 `deploy/nginx-pyodide.conf`），版本 v0.26.4。
+- Worker 中没有 DOM：matplotlib 强制使用 `Agg` 后端（否则 wasm 后端 `import document` 会失败）。
+- iframe 仅有 `allow-scripts`（无同源/Cookie 权限）；首屏 Pyodide 约 10~20MB，浏览器缓存后复用。

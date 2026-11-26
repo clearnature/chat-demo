@@ -267,3 +267,17 @@ Google CSE 正常）。当限额触发、搜索结果为空或质量下降时，
 - `sources` 不再按 8 条截断，retrieve 的工具结果也不再走 12000 字符 clip。
 - 注：`web_search` 仍是搜索列表工具（8 条），二者定位不同。
 - 验证：E2E 捕获「深度研究：19 个来源」、read-api 22 次。
+
+---
+
+## 8. 浏览器沙箱工具（2026-11-26）
+
+| 工具 | 运行时 | 能力 |
+| --- | --- | --- |
+| `python_sandbox` | Pyodide v0.26.4 + Web Worker | Python3 执行、stdout/stderr/返回值、numpy/pandas、matplotlib（Agg 后端）图表 PNG |
+| `render_frontend_artifact` | sandbox iframe（allow-scripts） | HTML/JS/TS（sucrase 转译）、Canvas/WebGL/Three.js（CDN）、可重新运行 |
+
+- 工具结果以 `sandbox` 块持久化，卡片展示代码/输出/图片/预览；不进入模型上下文（除工具结果文本）。
+- 首次 Python 调用从同源 `/pyodide/` 加载（约 10~20MB，可缓存）；执行默认超时 120s，Worker 超时终止。
+- 无服务端代码执行：Python 在浏览器 WASM、前端产物在无同源权限的 iframe 中运行。
+- 验证：Three.js 旋转立方体 iframe（srcdoc 含 three，8.6KB）；Python `print(2+2)`；matplotlib `y=sin(x)` 产出 1 张 PNG 并渲染。
