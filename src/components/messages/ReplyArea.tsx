@@ -82,6 +82,8 @@ export const ReplyArea = memo(function ReplyArea({
   const claimText = view.answer?.text ?? ''
   const missingCanvas =
     !streaming && !hasSandbox && /(已渲染|已生成页面|渲染出来|画布|Canvas)/.test(claimText)
+  // 工具执行了但模型没有给文字总结（例如轮次预算耗尽）：给出可读提示，避免“只有思考没有输出”
+  const sandboxWithoutAnswer = !streaming && hasSandbox && !view.answer?.text
   return (
     <div className={styles.area}>
       {title ? (
@@ -105,6 +107,11 @@ export const ReplyArea = memo(function ReplyArea({
               isLast={index === view.steps.length - 1}
             />
           ))}
+        </div>
+      ) : null}
+      {sandboxWithoutAnswer ? (
+        <div className={styles.canvasHint}>
+          <span>{t('sandboxOnlyResult')}</span>
         </div>
       ) : null}
       {missingCanvas ? (

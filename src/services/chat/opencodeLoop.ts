@@ -32,7 +32,7 @@ import type { AssistantMessage, Message, UserMessage } from './types.js'
  */
 
 /** 单轮对话内最多执行几次工具往返 */
-const MAX_TOOL_ROUNDS = 3
+const MAX_TOOL_ROUNDS = 6
 /** 模型元数据不可用时的输出上限兜底（不主动限制；元数据可用时按模型最大值） */
 const FALLBACK_MAX_OUTPUT_TOKENS = 131072
 /** 在浏览器沙箱执行、不需要内部 server_tool_use 块的工具 */
@@ -138,7 +138,15 @@ export const runOpenCodeReply = async (request: OpenCodeLoopRequest): Promise<As
     : undefined
   let repaired = false
 
-  for (let round = 0; round < MAX_TOOL_ROUNDS; round += 1) {
+  for (let round = 0; round <= MAX_TOOL_ROUNDS; round += 1) {
+    // 最后一轮为总结轮：不提供工具，要求模型基于已有工具结果输出最终文字
+    const summaryRound = round === MAX_TOOL_ROUNDS
+    if (summaryRound) {
+      messages.push({
+        role: 'user',
+        content: '请基于以上工具执行结果，给出最终回答；不要再调用工具。',
+      })
+    }
     const blockIndexes = new Map<number, number>()
     const pending = new Map<number, PendingTool>()
     const calls: ToolCall[] = []
@@ -222,8 +230,8 @@ export const runOpenCodeReply = async (request: OpenCodeLoopRequest): Promise<As
         max_tokens: maxOutputTokens,
         system,
         messages,
-        tools: clientTools(settings.search),
-        ...(toolChoice ? { tool_choice: toolChoice } : {}),
+        tools: summaryRound ? [] : clientTools(settings.search),
+        ...(!summaryRound && toolChoice ? { tool_choice: toolChoice } : {}),
       },
       signal
     )
@@ -263,11 +271,6 @@ export const runOpenCodeReply = async (request: OpenCodeLoopRequest): Promise<As
     }
     // 工具调用已经发生，后续轮次恢复自动选择
     toolChoice = undefined
-    // 已经是最后一轮：保留工具调用结果，但不再回传，避免超出轮次预算
-    if (round + 1 >= MAX_TOOL_ROUNDS) {
-      return settleReply(reply, 'done', Date.now())
-    }
-
     // 执行工具并把结果块追加到回复（UI 从 wip 变为 done/failed）
     const outcomes: ToolOutcome[] = []
     for (const call of calls) {

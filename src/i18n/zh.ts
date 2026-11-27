@@ -72,6 +72,7 @@ export const zh = {
   canvasLangHtml: 'HTML/JS',
   canvasLangPython: 'Python',
   topOpenCanvas: '打开画布',
+  sandboxOnlyResult: '工具已执行完成，结果见上方的沙箱卡片；模型未附加文字总结。',
   canvasHintText: '未检测到画布产物：模型只返回了文字。可以直接在画布中编写/粘贴代码运行，或重新生成。',
   canvasEmptyHint: '还没有画布内容。让 AI 生成 3D / Python / 前端演示，或从聊天里的画布卡片打开。',
   canvasOpen: '打开画布',

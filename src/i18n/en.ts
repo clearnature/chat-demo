@@ -76,6 +76,7 @@ export const en = {
   canvasLangHtml: 'HTML/JS',
   canvasLangPython: 'Python',
   topOpenCanvas: 'Open canvas',
+  sandboxOnlyResult: 'The tool finished; see the sandbox card above. The model did not add a text summary.',
   canvasHintText: 'No canvas artifact detected — the model only returned text. Open the canvas to write/run code, or regenerate.',
   canvasEmptyHint: 'No canvas content yet. Ask AI for a 3D / Python / frontend demo, or open it from a canvas card in the chat.',
   canvasOpen: 'Open canvas',
