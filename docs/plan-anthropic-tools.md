@@ -406,3 +406,13 @@ Google CSE 正常）。当限额触发、搜索结果为空或质量下降时，
 - 总结轮提示与系统提示都要求分步回答：`1. 2. 3. …`，每步给结论与依据；检索类问题优先
   `web_search/web_fetch` 快速检索并直接回答。
 - 验证：matplotlib prompt 仍输出 4 张图 + 分步正文，请求日志多轮工具调用正常收尾。
+
+### 9.14 HTML 误入 Python 沙箱的自动纠错（2026-11-26）
+
+- 现象：模型偶发把 HTML/CSS 传给 `python_sandbox`，Pyodide 编译 CSS 报
+  `SyntaxError: invalid decimal literal`，画布出现 Python traceback。
+- 修复：`executeToolCall` 增加交叉路由：
+  - `python_sandbox` 收到 HTML 标签 / CSS 片段 → 自动改走 `render_frontend_artifact`；
+  - `render_frontend_artifact` 收到 Python 代码 → 自动改走 `python_sandbox`。
+- 工具描述同时加固：Python 工具禁止传 HTML/CSS/JS，画布工具禁止传 Python。
+- 验证：render 3D 立方体 prompt 正常产出前端沙箱卡片 + iframe，无 Python 卡片/语法错误。

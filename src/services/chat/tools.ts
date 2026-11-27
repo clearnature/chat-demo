@@ -290,12 +290,37 @@ const executeFetch = async (call: ToolCall, signal: AbortSignal): Promise<ToolOu
   }
 }
 
+/** 代码看起来是 HTML/CSS/JS 标记（而不是 Python） */
+const looksLikeMarkup = (code: string): boolean =>
+  /<\s*(!doctype|html|head|body|style|script|canvas|div|svg|section|main|template)/i.test(code) ||
+  // 纯 CSS 片段（没有标签）也属于画布内容，不应送进 Python
+  /(^|\n)\s*[.#]?[\w-]+\s*\{[^}]*\b(position|display|margin|padding|color|background|font|width|height|transform|border|flex|grid)\s*:/i.test(code)
+
+/** 代码看起来是 Python 语句 */
+const looksLikePython = (code: string): boolean =>
+  !looksLikeMarkup(code) &&
+  /(^|\n)\s*(import\s+\w+|from\s+\w+\s+import|def\s+\w+\s*\(|print\s*\(|for\s+.+:\s*$|while\s+.+:\s*$)/m.test(code)
+
 /** 执行一次工具调用，返回内部结果块与回传给模型的 tool_result 文本 */
 export const executeToolCall = async (call: ToolCall, signal: AbortSignal): Promise<ToolOutcome> => {
   if (call.name === 'python_sandbox') {
+    const code = text((call.input as Record<string, unknown>).code)
+    // 自动纠错：模型把 HTML/CSS/JS 误传给 Python 沙箱时，改走画布工具
+    if (code && looksLikeMarkup(code)) {
+      return executeRenderArtifact({
+        ...call,
+        name: 'render_frontend_artifact',
+        input: { html_js_code: code, language: 'html', title: 'Canvas 产物' },
+      })
+    }
     return executePythonSandbox(call)
   }
   if (call.name === 'render_frontend_artifact') {
+    const raw = text((call.input as Record<string, unknown>).html_js_code)
+    // 自动纠错：把 Python 代码误传给画布工具时，改走 Python 沙箱
+    if (raw && looksLikePython(raw)) {
+      return executePythonSandbox({ ...call, name: 'python_sandbox', input: { code: raw } })
+    }
     return executeRenderArtifact(call)
   }
   if (call.name === 'retrieve_info') {
@@ -682,7 +707,7 @@ export const retrieveInfoAvailable = (): boolean => hasRetrieveCredentials()
 export const pythonSandboxTool: ClientToolDef = {
   name: 'python_sandbox',
   description:
-    'Execute Python 3 code in the user browser sandbox (Pyodide/WebAssembly) and return stdout/stderr/return value. numpy/pandas/matplotlib are supported and matplotlib figures are captured as images. Use it for calculations, data analysis, plotting, or algorithm verification. No server-side execution.',
+    'Execute Python 3 code in the user browser sandbox (Pyodide/WebAssembly) and return stdout/stderr/return value. numpy/pandas/matplotlib are supported and matplotlib figures are captured as images. Use it for calculations, data analysis, plotting, or algorithm verification. Only pass valid Python source here; NEVER pass HTML/CSS/JS (use render_frontend_artifact for markup). No server-side execution.',
   input_schema: {
     type: 'object',
     properties: {
@@ -699,7 +724,7 @@ export const pythonSandboxTool: ClientToolDef = {
 export const renderArtifactTool: ClientToolDef = {
   name: 'render_frontend_artifact',
   description:
-    'Render HTML/CSS/JavaScript/TypeScript in a sandboxed iframe inside the chat UI. Use it for interactive charts, UI demos, canvas/WebGL and 3D visualizations (e.g. Three.js via a CDN import). Provide a complete HTML document for language=html, or JS/TS module code for language=javascript/typescript (it runs inside <script type="module">). The iframe has allow-scripts only (no same-origin access).',
+    'Render HTML/CSS/JavaScript/TypeScript in a sandboxed iframe inside the chat UI. Use it for interactive charts, UI demos, canvas/WebGL and 3D visualizations (e.g. Three.js via a CDN import). Provide a complete HTML document for language=html, or JS/TS module code for language=javascript/typescript (it runs inside <script type="module">). Only pass markup/JS here; NEVER pass Python (use python_sandbox for Python). The iframe has allow-scripts only (no same-origin access).',
   input_schema: {
     type: 'object',
     properties: {
