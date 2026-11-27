@@ -28,13 +28,15 @@ import type { AssistantMessage, Message, UserMessage } from './types.js'
  * 3. `tool_use` 在流式过程中缓冲 input，结束后落为内部 `server_tool_use` 块；
  * 4. stop_reason=tool_use 时执行客户端工具（SearXNG 搜索 / 服务端正文抓取），
  *    把结果块追加到回复，并把 tool_use/tool_result 追加进本轮请求后继续；
- * 5. 最多 3 轮，正常结束（end_turn/max_tokens）或失败/停止时由调用方收尾。
+ * 5. 工具轮次上限 100 轮、总时长上限 30 分钟；到上限后进入总结轮输出分步答案。
  */
 
 /** 单轮对话内最多执行几次工具往返 */
-const MAX_TOOL_ROUNDS = 6
+const MAX_TOOL_ROUNDS = 100
 /** 模型元数据不可用时的输出上限兜底（不主动限制；元数据可用时按模型最大值） */
 const FALLBACK_MAX_OUTPUT_TOKENS = 131072
+/** 单次回复总时长上限（30 分钟）：到点后不再调用工具，直接进入总结轮 */
+const MAX_WALL_TIME_MS = 30 * 60 * 1000
 /** 在浏览器沙箱执行、不需要内部 server_tool_use 块的工具 */
 const SANDBOX_TOOLS = new Set(['python_sandbox', 'render_frontend_artifact'])
 
@@ -137,14 +139,16 @@ export const runOpenCodeReply = async (request: OpenCodeLoopRequest): Promise<As
     ? { type: 'tool', name: forcedTool }
     : undefined
   let repaired = false
+  const startedAt = Date.now()
 
   for (let round = 0; round <= MAX_TOOL_ROUNDS; round += 1) {
-    // 最后一轮为总结轮：不提供工具，要求模型基于已有工具结果输出最终文字
-    const summaryRound = round === MAX_TOOL_ROUNDS
+    // 总结轮：轮次用尽或超过 30 分钟时，不再提供工具，要求模型输出分步最终答案
+    const timeUp = Date.now() - startedAt >= MAX_WALL_TIME_MS
+    const summaryRound = round === MAX_TOOL_ROUNDS || timeUp
     if (summaryRound) {
       messages.push({
         role: 'user',
-        content: '请基于以上工具执行结果，给出最终回答；不要再调用工具。',
+        content: '请基于以上工具执行结果，给出分步最终回答（1. 2. 3. …，每步给结论与依据），不要再调用工具。',
       })
     }
     const blockIndexes = new Map<number, number>()

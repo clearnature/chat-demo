@@ -52,6 +52,7 @@ const SYSTEM_PROMPT =
   '必须调用 render_frontend_artifact 或 python_sandbox 工具，并等待工具执行结果后再总结；' +
   '禁止只用文字声称“已渲染/已生成/在上方渲染”，用户看不到文字里的画面。' +
   '如果工具调用失败，请说明失败原因并给出修复后的调用。' +
+  '检索类问题优先快速检索（web_search/web_fetch）并直接给出答案；复杂任务分步给出中间结论，最终回答必须按步骤组织（1. 2. 3. …），先结论后步骤。' +
   FABLE5_SKILL
 /** 保留最近打开的详情；当前会话、生成中及尚未成功保存的会话不淘汰。 */
 const SESSION_CACHE_LIMIT = 5
